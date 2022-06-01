@@ -1308,12 +1308,13 @@ end
  
 ### required getter functions
 gens(I::MPolyQuoLocalizedIdeal) = copy(I.gens)
-ngens(I::MPolyQuoLocalizedIdeal) = length(I.gens)
 base_ring(I::MPolyQuoLocalizedIdeal) = I.W
 
 ### additional getter functions 
 map_from_base_ring(I::MPolyQuoLocalizedIdeal) = I.map_from_base_ring
 pre_image_ideal(I) = I.J
+ngens(I::MPolyQuoLocalizedIdeal) = length(I.gens)
+getindex(I::MPolyQuoLocalizedIdeal, k::Int) = copy(I.gens[k])
 
 function Base.in(a::RingElem, I::MPolyQuoLocalizedIdeal)
   L = base_ring(I)
@@ -1366,4 +1367,13 @@ function ideal(
   return MPolyQuoLocalizedIdeal(W, W.(gens(I)))
 end
 
-
+function divides(a::MPolyQuoLocalizedRingElem, b::MPolyQuoLocalizedRingElem)
+  W = parent(a)
+  W == parent(b) || error("elements do not belong to the same ring")
+  F = FreeMod(W, 1)
+  A = MatrixSpace(W, 1, 1)([b])
+  M, _ = sub(F, A)
+  represents_element(a*F[1], M) || return (false, zero(W))
+  x = coordinates(a*F[1], M)
+  return true, W(x[1])
+end

@@ -1151,244 +1151,6 @@ function AbstractAlgebra.promote_rule(::Type{MPolyLocalizedRingElem{BRT, BRET, R
   return AbstractAlgebra.promote_rule(BRET, T) == BRET ? MPolyLocalizedRingElem{BRT, BRET, RT, RET, MST} : Union{}
 end
 
-########################################################################
-# Singular functionality                                               #
-########################################################################
-@Markdown.doc """
-    LocalizedBiPolyArray{BRT, BRET, RT, RET, MST}
-
-Main workhorse for binding of ideals in localizations ``R[S⁻¹]`` of 
-multivariate polynomial rings ``R = 𝕜[x₁,…,xₙ]`` to Singular. 
-To a set of elements ``f₁/g₁,…, fᵣ/gᵣ ∈ R[S⁻¹]`` this associates 
-the numerators ``ϕ(f₁),…,ϕ(fᵣ)`` as polynomials in `Singular`, 
-possibly after applying a shift ``ϕ : xᵢ ↦ xᵢ- aᵢ`` with constants 
-``aᵢ∈ 𝕜`` depending on the type `MST` of the multiplicative set.
-
-**Note:** The optional coordinate shift is to make local orderings 
-available for localizations at arbitrary ``𝕜``-points.
-"""
-mutable struct LocalizedBiPolyArray{BRT, BRET, RT, RET, MST}
-  # The generators on the Oscar side
-  oscar_gens::Vector{MPolyLocalizedRingElem{BRT, BRET, RT, RET, MST}}
-  # The numerators of the above fractions as elements in the singular version 
-  # of the original ring before localization.
-  singular_gens::Singular.sideal
-  # The localized ring on the Oscar side.
-  oscar_ring::MPolyLocalizedRing{BRT, BRET, RT, RET, MST}
-  # The polynomial ring on the singular side
-  singular_ring::Singular.PolyRing
-  # The ordering used for the above singular ring.
-  ordering::Orderings.AbsOrdering
-  # An optional shift vector applied to the polynomials in Oscar when 
-  # translating them to the Singular ring. 
-  # This is to make local orderings useful for localizations at 𝕜-points.
-  shift::Vector{BRET}
-  # Flag for caching
-  is_groebner_basis::Bool
-
-  function LocalizedBiPolyArray(
-      oscar_ring::MPolyLocalizedRing{BRT, BRET, RT, RET, MST},
-      oscar_gens::Vector{MPolyLocalizedRingElem{BRT, BRET, RT, RET, MST}},
-      shift::Vector{BRET},
-      ordering::Orderings.AbsOrdering;
-      is_groebner_basis::Bool=false
-    ) where {BRT, BRET, RT, RET, MST}
-    lbpa = new{BRT, BRET, RT, RET, MST}()
-    # TODO: Add some sanity checks here
-    lbpa.oscar_ring = oscar_ring
-    lbpa.oscar_gens = oscar_gens
-    lbpa.ordering = ordering
-    # fill up the shift vector with zeroes if it is not provided in full length
-    for i in (length(shift)+1:nvars(base_ring(oscar_ring)))
-      push!(shift, zero(coefficient_ring(base_ring(oscar_ring))))
-    end
-    lbpa.shift = shift
-    lbpa.is_groebner_basis=is_groebner_basis
-    return lbpa
-  end
-  
-  function LocalizedBiPolyArray(
-      oscar_ring::MPolyLocalizedRing{BRT, BRET, RT, RET, MST},
-      singular_gens::Singular.sideal,
-      shift::Vector{BRET},
-      ordering::Orderings.AbsOrdering,
-      is_groebner_basis::Bool
-    ) where {BRT, BRET, RT, RET, MST}
-    lbpa = new{BRT, BRET, RT, RET, MST}()
-    # TODO: Add some sanity checks here
-    lbpa.oscar_ring = oscar_ring
-    lbpa.singular_gens = singular_gens
-    lbpa.singular_ring = base_ring(singular_gens)
-    lbpa.ordering = ordering
-    R = base_ring(oscar_ring)
-    k = coefficient_ring(R)
-    # fill up the shift vector with zeroes if it is not provided in full length
-    for i in (length(shift)+1:nvars(R))
-      push!(shift, zero(k))
-    end
-    lbpa.shift = shift
-    inv_shift_hom = hom(R, R, [gen(R, i) - R(shift[i]) for i in (1:nvars(R))])
-    lbpa.oscar_gens = [ oscar_ring(y) for y in (inv_shift_hom.(R.([x for x in gens(singular_gens)])))]
-    lbpa.is_groebner_basis=is_groebner_basis
-    return lbpa
-  end
-end
-
-oscar_gens(lbpa::LocalizedBiPolyArray) = lbpa.oscar_gens
-oscar_ring(lbpa::LocalizedBiPolyArray) = lbpa.oscar_ring
-ordering(lbpa::LocalizedBiPolyArray) = lbpa.ordering
-shift(lbpa::LocalizedBiPolyArray) = lbpa.shift
-
-function singular_gens(lbpa::LocalizedBiPolyArray)
-  singular_assure(lbpa)
-  return lbpa.singular_gens
-end
-
-function singular_poly_ring(lbpa::LocalizedBiPolyArray)
-  singular_assure(lbpa)
-  return lbpa.singular_ring
-end
-
-function singular_assure(lbpa::LocalizedBiPolyArray)
-  if !isdefined(lbpa, :singular_ring)
-    lbpa.singular_ring = singular_poly_ring(base_ring(oscar_ring(lbpa)), ordering(lbpa))
-    shift_hom = hom(base_ring(oscar_ring(lbpa)), base_ring(oscar_ring(lbpa)), 
-        [gen(base_ring(oscar_ring(lbpa)), i) + lbpa.shift[i] for i in (1:nvars(base_ring(oscar_ring(lbpa))))])
-    lbpa.singular_gens = Singular.Ideal(lbpa.singular_ring,
-                                        (elem_type(lbpa.singular_ring))[lbpa.singular_ring(shift_hom(numerator(x))) for x in oscar_gens(lbpa)])
-    #lbpa.singular_gens = (length(oscar_gens(lbpa)) == 0 ? Singular.Ideal(lbpa.singular_ring) : Singular.Ideal(lbpa.singular_ring, [lbpa.singular_ring(shift_hom(numerator(x))) for x in oscar_gens(lbpa)]))
-  end
-  if lbpa.is_groebner_basis
-    lbpa.singular_gens.isGB = true
-  end
-end
-
-function singular_assure(lbpa::LocalizedBiPolyArray, ordering::MonomialOrdering)
-  if isdefined(lbpa, :ordering)
-    @assert lbpa.ordering == ordering.o
-  end
-  if !isdefined(lbpa, :singular_ring)
-    lbpa.ordering = ordering.o
-    singular_assure(lbpa)
-  else
-    if !isdefined(lbpa, :ordering)
-      lbpa.ordering = ordering.o
-      SR = singular_poly_ring(lbpa.oscar_ring, ordering.o)
-      f = Singular.AlgebraHomomorphism(lbpa.singular_ring, SR, gens(SR))
-      lbpa.singular_gens = Singular.map_ideal(f, lbpa.singular_gens)
-      lbpa.singular_ring = SR
-    end
-  end
-end
-
-function _compute_standard_basis(lbpa::LocalizedBiPolyArray, ordering::MonomialOrdering)
-  singular_assure(lbpa, ordering)
-  i = Singular.std(singular_gens(lbpa))
-  return LocalizedBiPolyArray(oscar_ring(lbpa), i, shift(lbpa), ordering.o, true)
-end
-
-function shift_hom(lbpa::LocalizedBiPolyArray) 
-  return hom(base_ring(oscar_ring(lbpa)), base_ring(oscar_ring(lbpa)), 
-	     [gen(base_ring(oscar_ring(lbpa)), i) + shift(lbpa)[i] for i in (1:nvars(base_ring(oscar_ring(lbpa))))])
-end
-
-function inv_shift_hom(lbpa::LocalizedBiPolyArray) 
-  R = base_ring(oscar_ring(lbpa))
-  return hom(R, R, [gen(R, i) - R(shift(lbpa)[i]) for i in (1:nvars(R))])
-end
-
-function to_singular_side(
-    lbpa::LocalizedBiPolyArray{BRT, BRET, RT, RET, MST}, 
-    f::MPolyLocalizedRingElem{BRT, BRET, RT, RET, MST}
-  ) where {BRT, BRET, RT, RET, MST}
-  S = singular_poly_ring(lbpa)
-  phi = shift_hom(lbpa)
-  return S(phi(numerator(f)))//S(phi(denominator(f)))
-end
-  
-function to_singular_side(
-    lbpa::LocalizedBiPolyArray{BRT, BRET, RT, RET, MST}, 
-    f::Vector{MPolyLocalizedRingElem{BRT, BRET, RT, RET, MST}}
-  ) where {BRT, BRET, RT, RET, MST}
-  S = singular_poly_ring(lbpa)
-  phi = shift_hom(lbpa)
-  return [S(phi(numerator(a)))//S(phi(denominator(a))) for a in f]
-end
-  
-function to_singular_side(
-    lbpa::LocalizedBiPolyArray{BRT, BRET, RT, RET, MST}, 
-    f::RET
-  ) where {BRT, BRET, RT, RET, MST}
-  S = singular_poly_ring(lbpa)
-  phi = shift_hom(lbpa)
-  return S(phi(f))
-end
-  
-function to_singular_side(
-    lbpa::LocalizedBiPolyArray{BRT, BRET, RT, RET, MST}, 
-    f::Vector{RET}
-  ) where {BRT, BRET, RT, RET, MST}
-  S = singular_poly_ring(lbpa)
-  phi = shift_hom(lbpa)
-  return [S(phi(a)) for a in f]
-end
-
-function to_oscar_side(
-    lbpa::LocalizedBiPolyArray,
-    f::Singular.spoly
-  )
-  W = oscar_ring(lbpa)
-  R = base_ring(W)
-  psi = inv_shift_hom(lbpa)
-  return psi(R(f))
-end
-  
-function to_oscar_side(
-    lbpa::LocalizedBiPolyArray,
-    f::Vector{Singular.spoly}
-  )
-  W = oscar_ring(lbpa)
-  R = base_ring(W)
-  psi = inv_shift_hom(lbpa)
-  return [psi(R(a)) for a in f]
-end
-
-function to_oscar_side(
-    lbpa::LocalizedBiPolyArray,
-    f::AbstractAlgebra.Generic.Frac{Singular.spoly}
-  )
-  W = oscar_ring(lbpa)
-  R = base_ring(W)
-  psi = inv_shift_hom(lbpa)
-  return psi(R(numerator(f)))//psi(R(denominator(f)))
-end
-  
-function to_oscar_side(
-    lbpa::LocalizedBiPolyArray,
-    f::Vector{AbstractAlgebra.Generic.Frac{Singular.spoly}}
-  )
-  W = oscar_ring(lbpa)
-  R = base_ring(W)
-  psi = inv_shift_hom(lbpa)
-  return [psi(R(numerator(a)))//psi(R(denominator(a))) for a in f]
-end
-
-function Base.length(lbpa::LocalizedBiPolyArray)
-  if isdefined(lbpa, :oscar_gens)
-    return length(lbpa.oscar_gens)
-  else
-    return Singular.ngens(lbpa.singular_gens)
-  end
-end
-
-function Base.iterate(lbpa::LocalizedBiPolyArray, s::Int = 1)
-  if s > length(lbpa)
-    return nothing
-  end
-  return lbpa.oscar_gens[s], s + 1
-end
-
-Base.eltype(lbpa::LocalizedBiPolyArray{BRT, BRET, RT, RET, MST}) where {BRT, BRET, RT, RET, MST} = MPolyLocalizedRingElem{BRT, BRET, RT, RET, MST}
 
 ########################################################################
 # Ideals in localizations of multivariate polynomial rings             #
@@ -1468,6 +1230,8 @@ ideal_type(L::MPolyLocalizedRing) = ideal_type(typeof(L))
 ### additional getter functions 
 map_from_base_ring(I::MPolyLocalizedIdeal) = I.map_from_base_ring
 is_saturated(I::MPolyLocalizedIdeal) = I.is_saturated
+ngens(I::MPolyLocalizedIdeal) = length(I.gens)
+getindex(I::MPolyLocalizedIdeal, k::Int) = copy(I.gens[k])
 
 function Base.in(a::RingElem, I::MPolyLocalizedIdeal)
   L = base_ring(I)
@@ -1481,7 +1245,7 @@ function Base.in(a::RingElem, I::MPolyLocalizedIdeal)
   !success && return false
   # cache the intermediate result
   extend_pre_saturated_ideal!(I, b, x, u, check=false)
-  return success
+  return true
 end
 
 function coordinates(a::RingElem, I::MPolyLocalizedIdeal; check::Bool=true)
@@ -1806,6 +1570,37 @@ function Base.show(io::IO, I::MPolyLocalizedIdeal)
   print(io, last(gens(I)))
 end
 
+########################################################################
+# special treatment of localization at orderings                       #
+########################################################################
+
+function Base.in(
+    a::RingElem,
+    I::MPolyLocalizedIdeal{LRT} 
+  ) where {LRT<:MPolyLocalizedRing{<:Any, <:Any, <:Any, <:Any, <:MPolyLeadingMonOne}}
+  parent(a) == base_ring(I) || return base_ring(I)(a) in I
+  J = pre_saturated_ideal(I)
+  p = numerator(a)
+  o = ordering(inverted_set(parent(a)))
+  # We have to call for that groebner basis once manually. 
+  # Otherwise the ideal membership will complain about the ordering not being global.
+  groebner_basis(J, ordering=o, enforce_global_ordering=false)
+  return ideal_membership(p, J, ordering=o)
+end
+
+function coordinates(
+    a::RingElem,
+    I::MPolyLocalizedIdeal{LRT} 
+  ) where {LRT<:MPolyLocalizedRing{<:Any, <:Any, <:Any, <:Any, <:MPolyLeadingMonOne}}
+  L = base_ring(I)
+  L == parent(a) || return coordinates(L(a), I)
+  J = pre_saturated_ideal(I)
+  p = numerator(a)
+  o = ordering(inverted_set(parent(a)))
+  x, u = Oscar.coordinates_with_unit(p, J, o)
+  T = pre_saturation_data(I)
+  return L(one(base_ring(L)), u*denominator(a), check=false)*change_base_ring(L, x)*T
+end
 
 @Markdown.doc """
     bring_to_common_denominator(f::Vector{T}) where {T<:MPolyLocalizedRingElem}
@@ -1966,3 +1761,13 @@ function ==(f::MPolyLocalizedRingHom, g::MPolyLocalizedRingHom)
   return true
 end
 
+function divides(a::MPolyLocalizedRingElem, b::MPolyLocalizedRingElem)
+  W = parent(a)
+  W == parent(b) || error("elements do not belong to the same ring")
+  F = FreeMod(W, 1)
+  A = MatrixSpace(W, 1, 1)([b])
+  M, _ = sub(F, A)
+  represents_element(a*F[1], M) || return (false, zero(W))
+  x = coordinates(a*F[1], M)
+  return true, W(x[1])
+end
