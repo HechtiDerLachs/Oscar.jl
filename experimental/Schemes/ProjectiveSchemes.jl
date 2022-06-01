@@ -554,8 +554,8 @@ mutable struct ProjectiveSchemeMor{
   pullback::PullbackType
 
   #fields for caching
-  map_on_base_schemes::SpecMor
-  map_on_affine_cones::SpecMor
+  map_on_base_schemes::Hecke.Map
+  map_on_affine_cones::Hecke.Map
 
   function ProjectiveSchemeMor(
       P::DomainType,
@@ -643,6 +643,36 @@ function map_on_affine_cones(phi::ProjectiveSchemeMor{<:ProjectiveScheme{<:Abstr
     Q = codomain(phi)
     imgs_fiber = [homog_to_frac(P)(g) for g in pullback(phi).(gens(S))]
     phi.map_on_affine_cones = SpecMor(affine_cone(P), affine_cone(Q), imgs_fiber)
+  end
+  return phi.map_on_affine_cones
+end
+
+function map_on_affine_cones(phi::ProjectiveSchemeMor{<:ProjectiveScheme{<:SpecOpenRing}}) 
+  if !isdefined(phi, :map_on_affine_cones)
+    X = domain(phi)
+    CX = affine_cone(X)
+    P = ambient(X)
+    A = base_scheme(X)
+    Y = codomain(phi)
+    CY = affine_cone(Y)
+    Q = ambient(CY)
+    B = base_scheme(Q)
+    fiber_coord_imgs = homog_to_frac(CX).(pullback(phi).(gens(homog_poly_ring(Y))))
+    base_coord_imgs = pullback(projection_to_base(X)).(gens(base_ring(OO(A))))
+    RQ = base_ring(OO(Q)) # the first 
+    phi.map_on_affine_cones = SpecOpenMor(CX, CY, 
+                                          [SpecMor(U, Q, vcat(fiber_coord_imgs, [f[i] for f in base_coord_imgs]) for i in 1:ngens(U)])
+
+    A = base_ring(domain(phi))
+    S = homog_poly_ring(codomain(phi))
+    T = homog_poly_ring(domain(phi))
+    P = domain(phi)
+    Q = codomain(phi)
+    pb_P = pullback(projection_to_base(P))
+    pb_Q = pullback(projection_to_base(Q))
+    imgs_base = pb_P.(gens(A))
+    imgs_fiber = [homog_to_frac(P)(g) for g in pullback(phi).(gens(S))]
+    phi.map_on_affine_cones = SpecMor(affine_cone(P), affine_cone(Q), vcat(imgs_fiber, imgs_base))
   end
   return phi.map_on_affine_cones
 end
