@@ -523,6 +523,15 @@ function inv(f::MPolyQuoLocalizedRingElem{BRT, BRET, RT, RET, MPolyPowersOfEleme
   return parent(f)(denominator(f), numerator(f))
 end
 
+function convert(
+    L::MPolyQuoLocalizedRing{BRT, BRET, RT, RET, MST}, 
+    f::AbstractAlgebra.Generic.Frac{RET}
+  ) where {BRT, BRET, RT, RET, MST}
+  I = ideal(L, L(denominator(f)))
+  y = coordinates(L(numerator(f)), I)
+  return y[1, 1]
+end
+
 ### 
 # Assume that [f] = [a]//[b] is an admissible element of L = (R/I)[S⁻¹] and bring it 
 # to the form [f] = [c]//[dᵏ] with d∈ S.
