@@ -17,3 +17,4 @@ include("Schemes/CoherentSheaves.jl")
 include("Schemes/CoveredProjectiveSchemes.jl")
 
 include("Matrix/matrix.jl")
+include("Schemes/singular_locus.jl")

@@ -174,6 +174,11 @@ function subscheme(X::Spec, f::Vector{<:RingElem})
   return subscheme(X, ideal(OO(X), f))
 end
 
+function hypersurface_complement(X::Spec{BRT, BRET, RT, RET, MST}, f::RET) where {BRT, BRET, RT, RET, MST}
+  R = base_ring(OO(X))
+  return Spec(R, modulus(OO(X)), inverted_set(OO(X))*MPolyPowersOfElement(R, [f]))
+end
+
 ### open subschemes defined by complements of hypersurfaces
 @Markdown.doc """
     hypersurface_complement(X::Spec{BRT, BRET, RT, RET, MST}, f::RET) where {BRT, BRET, RT, RET, MST<:MPolyPowersOfElement{BRT, BRET, RT, RET}}
@@ -337,6 +342,15 @@ end
 intersect(E::EmptyScheme{BRT, BRET}, X::Scheme{BRT, BRET}) where {BRT, BRET} = E
 intersect(X::Scheme{BRT, BRET}, E::EmptyScheme{BRT, BRET}) where {BRT, BRET} = E
 intersect(X::EmptyScheme{BRT, BRET}, E::EmptyScheme{BRT, BRET}) where {BRT, BRET} = E
+
+function Base.intersect(
+    X::Spec{BRT, BRET, RT, RET, MST1}, 
+    Y::Spec{BRT, BRET, RT, RET, MST2}
+  ) where {BRT, BRET, RT, RET, MST1, MST2}
+  base_ring(OO(X)) == base_ring(OO(Y)) || error("schemes can not be intersected")
+  R = base_ring(OO(X))
+  return Spec(R, modulus(OO(X)) + modulus(OO(Y)), inverted_set(OO(X))*inverted_set(OO(Y)))
+end
 
 function Base.intersect(
     X::Spec{BRT, BRET, RT, RET, MST1}, 
