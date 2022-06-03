@@ -34,3 +34,29 @@
   @test is_isomorphism(mirr)
   @test pullback(compose(inverse(mirr), mirr))(OO(X)(x^2-34*z)) == OO(X)(x^2-34*z+ f^2)
 end
+
+@testset "singular loci" begin
+  R, (x,y,z) = QQ["x", "y", "z"]
+  f = x^2 - y^2 + z^3
+  I = ideal(R, f)
+  U = MPolyComplementOfKPointIdeal(R, [0,0,0])
+  V = MPolyPowersOfElement(R, [z])
+  X = Spec(R, I, U)
+  Zcomp = hypersurface_complement(X, z)
+  @test isunit(OO(Zcomp)(x^2-y^2))
+  @test isone(inv(OO(Zcomp)(x^2-y^2))*OO(Zcomp)(x^2-y^2))
+  @test is_equidimensional(X)
+  Z = subscheme(X, z)
+  @test is_equidimensional(Z)
+  @test !isempty(singular_locus(X))
+  @test isempty(singular_locus(Zcomp))
+  Y = Spec(R, I*(z-1), U)
+  @test iszero(OO(reduced_scheme(singular_locus(Y)))(x))
+  @test iszero(OO(reduced_scheme(singular_locus(Y)))(y))
+  @test iszero(OO(reduced_scheme(singular_locus(Y)))(z))
+  Y = Spec(R, (I + ideal(R, x-y))*z, U)
+  @test !(is_equidimensional(Y))
+  @test iszero(OO(reduced_scheme(singular_locus(Y)))(x^2-y^2))
+  @test !iszero(OO(reduced_scheme(singular_locus(Y)))(x))
+  @test !iszero(OO(reduced_scheme(singular_locus(Y)))(y))
+end
