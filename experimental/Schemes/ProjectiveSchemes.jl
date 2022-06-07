@@ -664,13 +664,8 @@ function map_on_affine_cones(phi::ProjectiveSchemeMor{<:ProjectiveScheme{<:SpecO
     Q = ambient(CY)
     BY = base_scheme(Y)
     BQ = ambient(BY)
-    @show gens(homog_poly_ring(Y))
-    @show pullback(phi)
-    @show homog_to_frac(X)
-    @infiltrate
-    @show pullback(phi).(gens(homog_poly_ring(Y))) # elements in OO(CX)
     fiber_coord_imgs = homog_to_frac(X).(pullback(phi).(gens(homog_poly_ring(Y)))) # elements in OO(CX)
-    base_coord_imgs = pullback(phi).(pullback(projection_to_base(Y)).(gens(base_ring(OO(ambient(BY))))))
+    base_coord_imgs = pullback(phi).(pullback(projection_to_base(Y)).(gens(OO(BY))))
     coord_imgs = vcat(fiber_coord_imgs, base_coord_imgs)
     phi.map_on_affine_cones = SpecOpenMor(CX, CY, 
                                           [SpecMor(U, Q, (f->restriction_map(U, f)).(coord_imgs)) for U in CX], check=false)

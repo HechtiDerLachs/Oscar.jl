@@ -307,6 +307,10 @@ function standard_covering(X::ProjectiveScheme{CRT}) where {CRT<:AbstractAlgebra
                            y[r+1:end]),
                       check=false
                      )
+      # the following two lines are necessary to assure correct parenthood 
+      # of elements
+      f = restriction(f, domain(f), domain(g), check=false)
+      g = restriction(g, domain(g), domain(f), check=false)
       add_glueing!(result, Glueing(U[i], U[j], f, g, check=false))
     end
   end
