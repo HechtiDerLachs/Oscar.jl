@@ -48,12 +48,18 @@ mutable struct ProjectiveGlueing{
     SQV = homog_poly_ring(codomain(f))
     if check
       # check the commutativity of the pullbacks
-      all(y->(pullback(f)(SQV(OO(V)(y))) == SPU(pullback(fb)(OO(V)(y)))), gens(base_ring(OO(X)))) || error("maps do not commute")
-      all(x->(pullback(g)(SPU(OO(U)(x))) == SQV(pullback(gb)(OO(U)(x)))), gens(base_ring(OO(Y)))) || error("maps do not commute")
-      idPU = compose(f, g)
-      all(t->(pullback(idPU)(t) == t), gens(SPU)) || error("composition of maps is not the identity")
-      idQV = compose(g, f)
-      all(t->(pullback(idQV)(t) == t), gens(SQV)) || error("composition of maps is not the identity")
+      all(y->(pullback(f)(SQV(OO(V)(y))) == SPU(pullback(fb)(OO(V)(y)))), gens(base_ring(OO(Y)))) || error("maps do not commute")
+      all(x->(pullback(g)(SPU(OO(U)(x))) == SQV(pullback(gb)(OO(U)(x)))), gens(base_ring(OO(X)))) || error("maps do not commute")
+      fc = map_on_affine_cones(f)
+      gc = map_on_affine_cones(g)
+      idCPU = compose(fc, gc)
+      idCPU == identity_map(domain(fc)) || error("composition of maps is not the identity")
+      idCQV = compose(gc, fc)
+      idCQV == identity_map(domain(gc)) || error("composition of maps is not the identity")
+      # idPU = compose(f, g)
+      # all(t->(pullback(idPU)(t) == t), gens(SPU)) || error("composition of maps is not the identity")
+      # idQV = compose(g, f)
+      # all(t->(pullback(idQV)(t) == t), gens(SQV)) || error("composition of maps is not the identity")
     end
     return new{GlueingType, IsoType, IncType}(G, incP, incQ, f, g)
   end

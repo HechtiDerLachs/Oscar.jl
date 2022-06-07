@@ -40,6 +40,7 @@ include("Schemes/SpecOpen.jl")
 include("Schemes/Glueing.jl")
 include("Schemes/ProjectiveSchemes.jl")
 include("Schemes/CoveredScheme.jl")
+include("Schemes/CoveredProjectiveSchemes.jl")
 
 include("TropicalGeometry/runtests.jl")
 include("Serialization/runtests.jl")

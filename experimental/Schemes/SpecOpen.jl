@@ -558,6 +558,9 @@ function AbstractAlgebra.promote_rule(::Type{T}, ::Type{RET}) where {T<:SpecOpen
   return T
 end
 
+function Base.show(io::IO, f::SpecOpenRingElem)
+  print(io, restrictions(f))
+end
 
 @Markdown.doc """
     maximal_extension(X::Spec, f::AbstractAlgebra.Generic.Frac)
@@ -790,50 +793,8 @@ function compose(f::T, g::T; check::Bool=true) where {T<:SpecOpenMor}
   X = ambient(U)
   Y = ambient(V)
   Z = ambient(W)
-  g_maps = maps_on_patches(g)
-  f_maps = maps_on_patches(f)
-  #####################################################################
-  # The method proceeds as follows.
-  # We extract the affine open sets 
-  #   Uᵢⱼ = Uᵢ∩ f⁻¹(Vⱼ)  
-  # where Uᵢ are the patches of U and Vⱼ those of V.
-  # Then we can pass to the restrictions 
-  #   fᵢⱼ : Uᵢⱼ → Vⱼ 
-  # and the compositions 
-  #   gᵢⱼ :=  gⱼ ∘ fᵢⱼ: Uᵢⱼ → Z.
-  # For any variable z for Z we can write the pullbacks gᵢⱼ*z ∈ 𝒪(Uᵢⱼ). 
-  # These functions necessarily coincide on the overlaps of the Uᵢⱼ in 
-  # Uᵢ, so we can extend them to a global function on Uᵢ. 
-  # From these global functions, we can then assemble a morphism 
-  # on each one of the affine schemes Uᵢ which glue together to a 
-  # SpecOpenMor over these patches.
-  #####################################################################
-  m = length(gens(U))
-  n = length(gens(V))
-  result_maps = Vector{morphism_type(X, Y)}()
-  for i in 1:m
-    U_i = affine_patches(U)[i]
-    f_i = f_maps[i]
-    z_i = Vector{elem_type(OO(U_i))}() # the pullbacks of the coordinate functions of Z on Uᵢ
-    z_ij = Vector{Vector{elem_type(OO(U_i))}}()
-    for j in 1:n
-      V_j = affine_patches(V)[j]
-      g_j = g_maps[j]
-      U_ij = intersect(U_i, preimage(f_i, V_j))
-      g_ij = compose(restrict(f_i, U_ij, V_j), g_j)
-      push!(z_ij, [pullback(g_ij)(z) for z in gens(OO(Z))])
-      ### This is using the well known trick that if aᵢ// dᵢ coincide pairwise
-      # wherever dᵢ and dⱼ are defined, and 1 = ∑ᵢ λᵢ⋅ dᵢ, then 
-      # ∑ᵢλᵢ⋅ aᵢ = aᵢ// dᵢ on all open sets {dᵢ≠ 0}. 
-    end
-    for k in 1:length(gens(OO(Z)))
-      l = write_as_linear_combination(one(OO(U_i)), lifted_denominator.([z_ij[j][k] for j in 1:n]))
-      push!(z_i, dot(l, OO(U_i).(lifted_numerator.([z_ij[j][k] for j in 1:n]))))
-    end
-    push!(result_maps, SpecMor(U_i, Z, MPolyQuoLocalizedRingHom(OO(Z), OO(U_i), z_i)))
-    #push!(result_maps, SpecMor(U_i, Z, z_i))
-  end
-  return SpecOpenMor(U, W, result_maps)
+  pbz = pullback(f).(pullback(g).(OO(W).(gens(base_ring(OO(ambient(W)))))))
+  return SpecOpenMor(U, W, [SpecMor(A, ambient(W), (x->restrict(x, A)).(pbz)) for A in affine_patches(U)], check=false)
 end
 
 function pullback(f::SpecOpenMor, a::RingElem) where {RET<:RingElem}

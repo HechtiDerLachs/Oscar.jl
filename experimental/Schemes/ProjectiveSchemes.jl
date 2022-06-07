@@ -651,6 +651,7 @@ function map_on_affine_cones(phi::ProjectiveSchemeMor{<:ProjectiveScheme{<:Abstr
   return phi.map_on_affine_cones
 end
 
+using Infiltrator
 function map_on_affine_cones(phi::ProjectiveSchemeMor{<:ProjectiveScheme{<:SpecOpenRing}, <:ProjectiveScheme{<:SpecOpenRing}})
   if !isdefined(phi, :map_on_affine_cones)
     X = domain(phi)
@@ -664,10 +665,10 @@ function map_on_affine_cones(phi::ProjectiveSchemeMor{<:ProjectiveScheme{<:SpecO
     BY = base_scheme(Y)
     BQ = ambient(BY)
     fiber_coord_imgs = homog_to_frac(X).(pullback(phi).(gens(homog_poly_ring(Y)))) # elements in OO(CX)
-    base_coord_imgs = pullback(phi).(pullback(projection_to_base(Y)).(gens(OO(BY))))
-    coord_imgs = vcat(fiber_coord_imgs, base_coord_imgs)
+    base_coord_imgs = homog_to_frac(X).(pullback(phi).(homog_poly_ring(Y).(gens(OO(BY)))))
+    coord_imgs = vcat(base_coord_imgs, fiber_coord_imgs)
     phi.map_on_affine_cones = SpecOpenMor(CX, CY, 
-                                          [SpecMor(U, Q, (f->restriction_map(U, f)).(coord_imgs)) for U in CX], check=false)
+                                          [SpecMor(U, Q, (f->restrict(f, U)).(coord_imgs)) for U in affine_patches(CX)], check=false)
   end
   return phi.map_on_affine_cones
 end
