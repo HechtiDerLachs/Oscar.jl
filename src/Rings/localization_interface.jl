@@ -113,7 +113,7 @@ ideal(x)
 julia> U = MPolyComplementOfPrimeIdeal(P)
 complement of ideal(x)
 
-julia> Rloc= Localization(U)
+julia> Rloc, _ = Localization(U)
 localization of Multivariate Polynomial Ring in x, y, z over Rational Field at the complement of ideal(x)
 
 julia> R === base_ring(Rloc)
@@ -140,7 +140,7 @@ ideal(x)
 julia> U = MPolyComplementOfPrimeIdeal(P)
 complement of ideal(x)
 
-julia> Rloc= Localization(U)
+julia> Rloc, _ = Localization(U)
 localization of Multivariate Polynomial Ring in x, y, z over Rational Field at the complement of ideal(x)
 
 julia> U === inverted_set(Rloc)
@@ -373,11 +373,11 @@ end
 
 isone(a::AbsLocalizedRingElem) = (numerator(a) == denominator(a))
 
-isunit(f::AbsLocalizedRingElem) = numerator(f) in inverted_set(parent(f))
+is_unit(f::AbsLocalizedRingElem) = numerator(f) in inverted_set(parent(f))
 
-isdomain_type(T::Type{U}) where {U<:AbsLocalizedRingElem} = false # default set to false
+is_domain_type(T::Type{U}) where {U<:AbsLocalizedRingElem} = false # default set to false
 
-isexact_type(T::Type{U}) where {U<:AbsLocalizedRingElem} = false # default set to false
+is_exact_type(T::Type{U}) where {U<:AbsLocalizedRingElem} = false # default set to false
 
 function Base.hash(f::T, h::UInt) where {T<:AbsLocalizedRingElem} 
   r = 0x78a97cd90

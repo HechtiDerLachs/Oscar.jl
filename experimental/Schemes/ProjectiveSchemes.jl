@@ -558,8 +558,8 @@ mutable struct ProjectiveSchemeMor{
   pullback::PullbackType
 
   #fields for caching
-  map_on_base_schemes::Hecke.Map
-  map_on_affine_cones::Hecke.Map
+  map_on_base_schemes
+  map_on_affine_cones
 
   function ProjectiveSchemeMor(
       P::DomainType,
@@ -651,7 +651,6 @@ function map_on_affine_cones(phi::ProjectiveSchemeMor{<:ProjectiveScheme{<:Abstr
   return phi.map_on_affine_cones
 end
 
-using Infiltrator
 function map_on_affine_cones(phi::ProjectiveSchemeMor{<:ProjectiveScheme{<:SpecOpenRing}, <:ProjectiveScheme{<:SpecOpenRing}})
   if !isdefined(phi, :map_on_affine_cones)
     X = domain(phi)
