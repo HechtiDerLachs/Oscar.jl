@@ -156,6 +156,10 @@ function base_scheme(X::ProjectiveScheme{CRT, CRET, RT, RET}) where {CRT<:Union{
   return X.Y
 end
 
+function base_scheme(X::ProjectiveScheme{<:SpecOpenRing}) 
+  return domain(base_ring(X))
+end
+
 function set_base_scheme!(P::ProjectiveScheme{CRT, CRET, RT, RET}, X::Spec) where {CRT<:MPolyQuoLocalizedRing, CRET, RT, RET}
   OO(X) == base_ring(P) || error("schemes are not compatible")
   P.Y = X
@@ -647,32 +651,29 @@ function map_on_affine_cones(phi::ProjectiveSchemeMor{<:ProjectiveScheme{<:Abstr
   return phi.map_on_affine_cones
 end
 
-function map_on_affine_cones(phi::ProjectiveSchemeMor{<:ProjectiveScheme{<:SpecOpenRing}}) 
+using Infiltrator
+function map_on_affine_cones(phi::ProjectiveSchemeMor{<:ProjectiveScheme{<:SpecOpenRing}, <:ProjectiveScheme{<:SpecOpenRing}})
   if !isdefined(phi, :map_on_affine_cones)
     X = domain(phi)
     CX = affine_cone(X)
-    P = ambient(X)
-    A = base_scheme(X)
+    P = ambient(CX)
+    BX = base_scheme(X)
+    BP = ambient(BX)
     Y = codomain(phi)
     CY = affine_cone(Y)
     Q = ambient(CY)
-    B = base_scheme(Q)
-    fiber_coord_imgs = homog_to_frac(CX).(pullback(phi).(gens(homog_poly_ring(Y))))
-    base_coord_imgs = pullback(projection_to_base(X)).(gens(base_ring(OO(A))))
-    RQ = base_ring(OO(Q)) # the first 
-    #phi.map_on_affine_cones = SpecOpenMor(CX, CY, 
-    #                                      [SpecMor(U, Q, vcat(fiber_coord_imgs, [f[i] for f in base_coord_imgs]) for i in 1:ngens(U)])
-
-    A = base_ring(domain(phi))
-    S = homog_poly_ring(codomain(phi))
-    T = homog_poly_ring(domain(phi))
-    P = domain(phi)
-    Q = codomain(phi)
-    pb_P = pullback(projection_to_base(P))
-    pb_Q = pullback(projection_to_base(Q))
-    imgs_base = pb_P.(gens(A))
-    imgs_fiber = [homog_to_frac(P)(g) for g in pullback(phi).(gens(S))]
-    phi.map_on_affine_cones = SpecMor(affine_cone(P), affine_cone(Q), vcat(imgs_fiber, imgs_base))
+    BY = base_scheme(Y)
+    BQ = ambient(BY)
+    @show gens(homog_poly_ring(Y))
+    @show pullback(phi)
+    @show homog_to_frac(X)
+    @infiltrate
+    @show pullback(phi).(gens(homog_poly_ring(Y))) # elements in OO(CX)
+    fiber_coord_imgs = homog_to_frac(X).(pullback(phi).(gens(homog_poly_ring(Y)))) # elements in OO(CX)
+    base_coord_imgs = pullback(phi).(pullback(projection_to_base(Y)).(gens(base_ring(OO(ambient(BY))))))
+    coord_imgs = vcat(fiber_coord_imgs, base_coord_imgs)
+    phi.map_on_affine_cones = SpecOpenMor(CX, CY, 
+                                          [SpecMor(U, Q, (f->restriction_map(U, f)).(coord_imgs)) for U in CX], check=false)
   end
   return phi.map_on_affine_cones
 end
