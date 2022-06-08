@@ -274,3 +274,17 @@ end
   @test z in LSI
   @test !(z in Oscar.pre_saturated_ideal(LSI)) # caching is not supposed to happen, because of special routing.
 end
+
+@testset "hilbert-samuel" begin
+  R, (x, y) = QQ["x", "y"]
+  u = x-1
+  v = y+2
+  I = ideal(R, [u^2, u*v, v^3])
+  U = MPolyComplementOfKPointIdeal(R, [1, -2])
+  L, _ = Localization(R, U)
+  IL = L(I)
+  p, q = hilbert_series(IL)
+  B = parent(p)
+  t = gens(B)[1]
+  @test (p, q) == (t^4 - 2*t^2 + 1, t^2 - 2*t + 1)
+end

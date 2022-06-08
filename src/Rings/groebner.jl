@@ -255,8 +255,12 @@ julia> L = leading_ideal(I, ordering=lex(gens(R)))
 ideal(y^7, x*y^2, x^3)
 ```
 """
-function leading_ideal(I::MPolyIdeal; ordering::MonomialOrdering)
-  G = groebner_basis(I, ordering=ordering)
+function leading_ideal(
+    I::MPolyIdeal; 
+    ordering::MonomialOrdering=default_ordering(base_ring(I)), 
+    enforce_global_ordering::Bool=true
+  )
+  G = groebner_basis(I, ordering=ordering, enforce_global_ordering=enforce_global_ordering)
   return ideal(base_ring(I), [first(monomials(g, ordering)) for g in G])
 end
 
