@@ -10,6 +10,8 @@ export numerator, denominator, parent, lift, is_unit, inv, convert, lifted_numer
 
 export MPolyQuoLocalizedRingHom
 export domain, codomain, images, morphism_type, domain_type, codomain_type, restricted_map_type, ideal_type
+export MPolyQuoLocalizedIdeal
+
 export helper_ring, helper_images, minimal_denominators, helper_eta, helper_kappa, common_denominator, helper_ideal
 
 export is_isomorphism, inverse
@@ -1174,39 +1176,6 @@ function preimage(
                                                         <:MPolyPowersOfElement
                                                        }
                                },
-    I::MPolyQuoLocalizedIdeal
-  )
-  base_ring(I) == codomain(f) || error("the ideal does not belong to the codomain of the map")
-  R = base_ring(domain(f))
-  S = base_ring(codomain(f))
-  Sc = helper_ring(f)
-  Isat = saturated_ideal(pre_image_ideal(I))
-  J = ideal(Sc, [helper_kappa(f)(g) for g in gens(Isat)]) + helper_ideal(f)
-  return domain(f)(preimage(helper_eta(f), J))
-end
-
-function kernel(
-    f::MPolyQuoLocalizedRingHom{
-                                <:MPolyQuoLocalizedRing{<:Any, <:Any, <:Any, <:Any, 
-                                                        <:MPolyPowersOfElement
-                                                       },
-                                <:MPolyQuoLocalizedRing{<:Any, <:Any, <:Any, <:Any, 
-                                                        <:MPolyPowersOfElement
-                                                       }
-                               }
-  ) 
-  return preimage(f, ideal(codomain(f), zero(codomain(f))))
-end
-
-function preimage(
-    f::MPolyQuoLocalizedRingHom{
-                                <:MPolyQuoLocalizedRing{<:Any, <:Any, <:Any, <:Any, 
-                                                        <:MPolyPowersOfElement
-                                                       },
-                                <:MPolyQuoLocalizedRing{<:Any, <:Any, <:Any, <:Any, 
-                                                        <:MPolyPowersOfElement
-                                                       }
-                               },
     I::MPolyLocalizedIdeal
   )
   base_ring(I) == localized_ring(codomain(f)) || error("the ideal does not belong to the codomain of the map")
@@ -1409,3 +1378,37 @@ function divides(a::MPolyQuoLocalizedRingElem, b::MPolyQuoLocalizedRingElem)
   x = coordinates(a*F[1], M)
   return true, W(x[1])
 end
+
+function preimage(
+    f::MPolyQuoLocalizedRingHom{
+                                <:MPolyQuoLocalizedRing{<:Any, <:Any, <:Any, <:Any, 
+                                                        <:MPolyPowersOfElement
+                                                       },
+                                <:MPolyQuoLocalizedRing{<:Any, <:Any, <:Any, <:Any, 
+                                                        <:MPolyPowersOfElement
+                                                       }
+                               },
+    I::MPolyQuoLocalizedIdeal
+  )
+  base_ring(I) == codomain(f) || error("the ideal does not belong to the codomain of the map")
+  R = base_ring(domain(f))
+  S = base_ring(codomain(f))
+  Sc = helper_ring(f)
+  Isat = saturated_ideal(pre_image_ideal(I))
+  J = ideal(Sc, [helper_kappa(f)(g) for g in gens(Isat)]) + helper_ideal(f)
+  return domain(f)(preimage(helper_eta(f), J))
+end
+
+function kernel(
+    f::MPolyQuoLocalizedRingHom{
+                                <:MPolyQuoLocalizedRing{<:Any, <:Any, <:Any, <:Any, 
+                                                        <:MPolyPowersOfElement
+                                                       },
+                                <:MPolyQuoLocalizedRing{<:Any, <:Any, <:Any, <:Any, 
+                                                        <:MPolyPowersOfElement
+                                                       }
+                               }
+  ) 
+  return preimage(f, ideal(codomain(f), zero(codomain(f))))
+end
+

@@ -168,6 +168,8 @@ function blow_up(W::Spec, I::MPolyQuoLocalizedIdeal;
   inner_phi = hom(base_ring(OO(PWC)), OO(WA1), imgs)
   phi = MPolyQuoLocalizedRingHom(OO(PWC), OO(WA1), inner_phi)
   K = kernel(phi)
+  J = ideal(homog_poly_ring(PW), poly_to_homog(PW).(lifted_numerator.([f for f in gens(K) if !iszero(f)])))
+  return subscheme(PW, J)
 end
 
 # blow up X in the center described by g using these explicit generators.
