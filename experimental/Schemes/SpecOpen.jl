@@ -1,7 +1,7 @@
 export SpecOpen, ambient, gens, ngens, complement, npatches, affine_patches, intersections, name, intersect, issubset, closure, find_non_zero_divisor, is_non_zero_divisor, is_dense, open_subset_type, ambient_type, is_canonically_isomorphic
 export restriction_map
 
-export SpecOpenRing, scheme, domain, OO, structure_sheaf_ring_type, isdomain_type, isexact_type
+export SpecOpenRing, scheme, domain, OO, structure_sheaf_ring_type, is_domain_type, is_exact_type
 
 export SpecOpenRingElem, domain, restrictions, patches, restrict, npatches, structure_sheaf_elem_type
 
@@ -48,7 +48,7 @@ this is an open subset;
     for a in f
       parent(a) == base_ring(OO(X)) || error("element does not belong to the correct ring")
       if check
-        !isempty(X) && iszero(OO(X)(a)) && error("generators must not be zero")
+        !is_empty(X) && iszero(OO(X)(a)) && error("generators must not be zero")
       end
     end
     U = new{SpecType, typeof(base_ring(X)), elem_type(base_ring(X))}(X, f)
@@ -268,7 +268,7 @@ function issubset(U::T, V::T) where {T<:SpecOpen}
   # perform an implicit radical membership test (Rabinowitsch) that is way more 
   # efficient than computing radicals.
   for g in gens(U)
-    isempty(hypersurface_complement(Z, g)) || return false
+    is_empty(hypersurface_complement(Z, g)) || return false
   end
   return true
   #return issubset(complement(intersect(V, ambient(U))), complement(U))
@@ -448,7 +448,7 @@ function restrict(
     f::SpecOpenRingElem, 
     V::Spec
   )
-  isempty(V) && return zero(OO(V))
+  is_empty(V) && return zero(OO(V))
   for i in 1:length(restrictions(f))
     if V == affine_patches(domain(f))[i]
       return restrictions(f)[i]
@@ -528,8 +528,8 @@ function divexact(a::T, b::T; check::Bool=false) where {T<:SpecOpenRingElem}
   return SpecOpenRingElem(parent(a), [divexact(a[i], b[i]) for i in 1:length(restrictions(a))])
 end
 
-function isunit(a::SpecOpenRingElem) 
-  return all(x->isunit(x), restrictions(a))
+function is_unit(a::SpecOpenRingElem) 
+  return all(x->is_unit(x), restrictions(a))
 end
 
 inv(a::SpecOpenRingElem) = SpecOpenRingElem(parent(a), [inv(f) for f in restrictions(a)], check=false)
@@ -541,14 +541,14 @@ zero(R::SpecOpenRing) = SpecOpenRingElem(R, [zero(OO(U)) for U in affine_patches
 (R::SpecOpenRing)(a::Int64) = SpecOpenRingElem(R, [OO(U)(a) for U in affine_patches(domain(R))], check=false)
 (R::SpecOpenRing)(a::fmpz) = SpecOpenRingElem(R, [OO(U)(a) for U in affine_patches(domain(R))], check=false)
 
-isdomain_type(::Type{T}) where {T<:SpecOpenRingElem} = true
-isdomain_type(a::SpecOpenRingElem) = isdomain_type(typeof(a))
-isexact_type(::Type{T}) where {T<:SpecOpenRingElem} = true
-isexact_type(a::SpecOpenRingElem) = isexact_type(typeof(a))
-isdomain_type(::Type{T}) where {T<:SpecOpenRing} = true
-isdomain_type(R::SpecOpenRing) = isdomain_type(typeof(R))
-isexact_type(::Type{T}) where {T<:SpecOpenRing} = true
-isexact_type(R::SpecOpenRing) = isexact_type(typeof(R))
+is_domain_type(::Type{T}) where {T<:SpecOpenRingElem} = true
+is_domain_type(a::SpecOpenRingElem) = is_domain_type(typeof(a))
+is_exact_type(::Type{T}) where {T<:SpecOpenRingElem} = true
+is_exact_type(a::SpecOpenRingElem) = is_exact_type(typeof(a))
+is_domain_type(::Type{T}) where {T<:SpecOpenRing} = true
+is_domain_type(R::SpecOpenRing) = is_domain_type(typeof(R))
+is_exact_type(::Type{T}) where {T<:SpecOpenRing} = true
+is_exact_type(R::SpecOpenRing) = is_exact_type(typeof(R))
 
 AbstractAlgebra.promote_rule(::Type{T}, ::Type{RET}) where {T<:SpecOpenRingElem, RET<:Integer} = T
 AbstractAlgebra.promote_rule(::Type{RET}, ::Type{T}) where {T<:SpecOpenRingElem, RET<:Integer} = T
@@ -1005,7 +1005,7 @@ function restriction_map(U::SpecOpen, X::Spec, h::MPolyElem; check::Bool=true)
 
   # handle the shortcut 
   if X in affine_patches(U)
-    i = findfirst(x->(isequal(x, V), affine_patches(U)))
+    i = findfirst(x->(is_equal(x, V), affine_patches(U)))
     function mymap(f::SpecOpenRingElem)
       return f[i]
     end

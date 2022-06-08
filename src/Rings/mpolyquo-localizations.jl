@@ -211,8 +211,8 @@ function quo(
   )
   R = base_ring(L)
   S = inverted_set(L)
-  lbpa = groebner_basis(I) # In particular, this saturates the ideal
-  J = ideal(R, numerator.(oscar_gens(lbpa))) # the preimage of I in R
+  base_ring(I) = localized_ring(L) || error("ideal does not belong to the correct ring")
+  J = pre_saturated_ideal(I)
   W = MPolyQuoLocalizedRing(R, J, S, quo(R, J)[1], localized_ring(L))
   return W, hom(L, W, gens(W))
 end
@@ -674,21 +674,11 @@ end
 ### enhancement of the arithmetic
 function reduce_fraction(f::MPolyQuoLocalizedRingElem{BRT, BRET, RT, RET, MST}) where {BRT, BRET, RT, RET, MST<:MPolyPowersOfElement}
   return f
-  is_reduced(f) && return f
-  h = lift(f)
-  g = gcd(numerator(h), denominator(h))
-  h = parent(h)(divexact(numerator(h), g), divexact(denominator(h), g), check=false)
-  h = reduce(h, groebner_basis(localized_modulus(parent(f))))
-  return parent(f)(h, is_reduced=true, check=false)
 end
 
 # for local orderings, reduction does not give the correct result.
 function reduce_fraction(f::MPolyQuoLocalizedRingElem{BRT, BRET, RT, RET, MST}) where {BRT, BRET, RT, RET, MST<:MPolyComplementOfKPointIdeal}
   is_reduced(f) && return f
-  h = lift(f)
-  g = gcd(numerator(h), denominator(h))
-  h = parent(h)(divexact(numerator(h), g), divexact(denominator(h), g), check=false)
-  return parent(f)(h, is_reduced=true, check=false)
 end
 
 ### implementation of Oscar's general ring interface
