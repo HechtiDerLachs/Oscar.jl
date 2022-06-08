@@ -151,6 +151,25 @@ function empty_covered_projective_scheme(R::T) where {T<:AbstractAlgebra.Ring}
   return CoveredProjectiveScheme(Y, C, pp, tr)
 end
 
+function blow_up(W::Spec, I::MPolyQuoLocalizedIdeal;
+    var_names::Vector{Symbol}=Symbol.(["s$(i-1)" for i in 1:ngens(I)]),
+    verbose::Bool=false,
+    check::Bool=true,
+    is_regular_sequence::Bool=false
+  )
+  base_ring(I) == OO(W) || error("ideal does not belong to the correct ring")
+  r = ngens(I)-1
+  PW = projective_space(W, var_names)
+  PWC = affine_cone(PW)
+  prW = projection_to_base(PW)
+  WA1, pW, pA = product(W, affine_space(base_ring(base_ring(OO(W))), 1, variable_name="t"))
+  t = pullback(pA)(OO(codomain(pA))(base_ring(OO(codomain(pA)))[1]))
+  imgs = vcat((x->t*x).(pullback(pW).(gens(I))), pullback(pW).(gens(base_ring(OO(W)))))
+  inner_phi = hom(base_ring(OO(PWC)), OO(WA1), imgs)
+  phi = MPolyQuoLocalizedRingHom(OO(PWC), OO(WA1), inner_phi)
+  K = kernel(phi)
+end
+
 # blow up X in the center described by g using these explicit generators.
 function blow_up(
     W::Spec, 
