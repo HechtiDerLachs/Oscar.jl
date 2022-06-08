@@ -663,6 +663,10 @@ function coordinates(
   return L(one(base_ring(L)), u*denominator(a), check=false)*change_base_ring(L, x)*T
 end
 
+########################################################################
+# special features for the Sao Carlos summer school                    #
+########################################################################
+
 @attr function hilbert_series(
     I::MPolyLocalizedIdeal{LRT}
   ) where {LRT<:MPolyLocalizedRing{<:Any, <:Any, <:Any, <:Any, <:MPolyComplementOfKPointIdeal}}
@@ -676,4 +680,26 @@ end
   Q, _ = quo(RG, LJG)
   hilbert_series(Q)
 end
+
+@attr Vector{BRET} function kbase(
+    I::MPolyLocalizedIdeal{LRT}
+  ) where {BRET, LRT<:MPolyLocalizedRing{<:Any, <:Any, <:Any, BRET, <:MPolyComplementOfKPointIdeal}}
+  L = base_ring(I)
+  J = shifted_ideal(I)
+  R = base_ring(L)
+  o = negdegrevlex(gens(R))
+  LJ = leading_ideal(J, ordering=o, enforce_global_ordering=false)
+  dim(LJ) == 0 || error("ideal is not zero dimensional")
+  d = 0
+  deg_d_part = all_monomials(R, d)
+  result = elem_type(R)[]
+  while !all(x->(x in LJ), deg_d_part)
+    result = vcat(result, [x for x in deg_d_part if !(x in LJ)])
+    d = d + 1
+    deg_d_part = Oscar.all_monomials(R, d)
+  end
+  _, back_shift = base_ring_shifts(L)
+  return back_shift.(result)
+end
+
 
