@@ -1,4 +1,6 @@
 export kbase, versal_deformation_perturbations
+export singular_slocus, singular_vdim, singular_vdim_local, vdim
+export milnor_number
 
 function manualT1(I::Ideal)
   R = base_ring(I)
@@ -53,3 +55,80 @@ function versal_deformation_perturbations(I::MPolyIdeal)
   bhoms = as_hom.(blift)
   [f.(gens(domain(f))) for f in bhoms]
 end
+
+
+### Functionality for elements and ideals in localized rings
+function Generic.dim(I::MPolyLocalizedIdeal) 
+    return dim(saturated_ideal(I))
+end
+
+function Hecke.radical(I::MPolyLocalizedIdeal)
+    return base_ring(I)(radical(saturated_ideal(I)))
+end
+
+function Oscar.jacobi_matrix(f::MPolyLocalizedRingElem)
+  L = parent(f)
+  n = nvars(base_ring(L))
+  return matrix(L, n, 1, [derivative(f, i) for i=1:n])
+end
+
+function Oscar.jacobi_matrix(g::Vector{<:MPolyLocalizedRingElem})
+  length(g) == 0 && error("can not return the jacobi matrix of an empty vector")
+  R = parent(g[1])
+  n = nvars(base_ring(R))
+  @assert all(x->parent(x) == R, g)
+  return matrix(R, n, length(g), [derivative(x, i) for i=1:n for x = g])
+end
+
+function Oscar.derivative(f::MPolyLocalizedRingElem, i::Int)
+  isone(denominator(f)) && return parent(f)(derivative(numerator(f), i))
+  num = derivative(numerator(f), i)*denominator(f) - derivative(denominator(f), i)*numerator(f)
+  den = denominator(f)^2
+  g = gcd(num, den)
+  return parent(f)(divexact(num, g), divexact(den, g), check=false)
+end
+
+function Oscar.ngens(L::MPolyLocalizedRing)
+    return ngens(base_ring(L))
+end
+
+function singular_slocus(I::MPolyIdeal)
+  R = base_ring(I)
+  SR = singular_poly_ring(R)
+  Sgens = SR.(gens(I))
+  SI = Singular.Ideal(SR, Sgens)
+  SJ = Singular.LibSing.slocus(SI)
+  J = ideal(R, R.(gens(SJ)))
+  return J
+end
+
+function singular_vdim(I::MPolyIdeal)
+  R = base_ring(I)
+  SR = singular_poly_ring(R)
+  Sgens = SR.(gens(I))
+  SI = Singular.Ideal(SR, Sgens)
+  return Singular.vdim(Singular.std(SI))
+end
+
+function singular_vdim_local(I::MPolyIdeal)
+  R = base_ring(I)
+  SR = singular_poly_ring(R, negdegrevlex(gens(R)))
+  Sgens = SR.(gens(I))
+  SI = Singular.Ideal(SR, Sgens)
+  std_SI = Singular.std(SI)
+  return Singular.vdim(std_SI)
+end
+
+function vdim(I::T) where {T<:MPolyLocalizedIdeal{<:MPolyLocalizedRing{<:Any, <:Any, <:Any, <:Any, <:MPolyComplementOfKPointIdeal}}}
+  I_shift = Oscar.shifted_ideal(I)
+  return singular_vdim_local(I_shift)
+end
+
+function milnor_number(f::MPolyLocalizedRingElem{<:Any, <:Any, <:Any, <:Any, <:MPolyComplementOfKPointIdeal})
+  R = parent(f)
+  J = ideal(R, minors(jacobi_matrix(f), 1))
+  J_shift = Oscar.shifted_ideal(J)
+  return singular_vdim_local(J_shift)
+end
+
+
