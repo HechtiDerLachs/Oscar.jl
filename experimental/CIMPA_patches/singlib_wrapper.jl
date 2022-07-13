@@ -55,9 +55,16 @@ end
 
 function delta_invariant(f::MPolyElem)
   R = parent(f)
-  SR = singular_poly_ring(R)
+  SR = singular_poly_ring(R, negdegrevlex(gens(R)))
   Sf = SR(f)
   result = Singular.LibHnoether.delta(Sf) # the extra zero is a flag for verbose output
+end
+
+function delta_invariant(I::MPolyIdeal)
+  R = base_ring(I)
+  SR = singular_poly_ring(R, negdegrevlex(gens(R)))
+  SI = Singular.Ideal(SR, SR.(gens(I)))
+  result = Singular.LibCurveInv.curveDeltaInv(SI) # the extra zero is a flag for verbose output
 end
 
 function T2(f::MPolyElem)
