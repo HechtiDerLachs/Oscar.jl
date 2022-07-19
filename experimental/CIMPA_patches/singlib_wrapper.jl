@@ -5,6 +5,10 @@ oscar_coeff_ring(::Singular.Rationals) = QQ
 
 oscar_poly_ring(S::Singular.PolyRing) = PolynomialRing(oscar_coeff_ring(base_ring(S)), symbols(S))[1]
 
+Spec(Q::MPolyQuo, U::AbsMPolyMultSet) = Spec(
+                                             MPolyQuoLocalizedRing(
+                                                                   base_ring(Q), modulus(Q), U, Q, Localization(base_ring(Q), U)[1]))
+
 function versal_unfolding(I::MPolyIdeal; degree_cutoff::Int=100)
   R = base_ring(I)
   SR = singular_poly_ring(R) # TODO: Do we need a local ordering here?
@@ -34,9 +38,9 @@ function versal_unfolding(I::MPolyIdeal; degree_cutoff::Int=100)
   pr = hom(QB, QT, gens(QT)[1:ngens(QB)])
   Q, _ = quo(R, I)
   sp = hom(QT, Q, vcat([zero(R) for i in 1:ngens(QB)], gens(R)))
-  X0 = Spec(Q)
-  X = Spec(QT)
-  Y = Spec(QB)
+  X0 = Spec(Q, complement_of_ideal(R, [0 for i in 1:ngens(R)]))
+  X = Spec(QT, complement_of_ideal(RT, [0 for i in 1:ngens(RT)]))
+  Y = Spec(QB, complement_of_ideal(B, [0 for i in 1:ngens(B)]))
   p = SpecMor(X, Y, hom(OO(Y), OO(X), OO(X).(pr.(gens(QB)))))
   inc = SpecMor(X0, X, hom(OO(X), OO(X0), OO(X0).(sp.(gens(QT)))))
   return inc, p
