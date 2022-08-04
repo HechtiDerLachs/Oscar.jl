@@ -14,3 +14,4 @@ include("Schemes/CoveredScheme.jl")
 
 include("Matrix/matrix.jl")
 include("CIMPA_patches/patches.jl")
+include("MapGerms.jl")
