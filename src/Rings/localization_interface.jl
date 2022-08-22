@@ -184,6 +184,9 @@ Multivariate Polynomial Ring in x, y, z over Rational Field
 Codomain:
 =========
 localization of Multivariate Polynomial Ring in x, y, z over Rational Field at the complement of ideal(x)
+=======
+Map from
+Multivariate Polynomial Ring in x, y, z over Rational Field to localization of Multivariate Polynomial Ring in x, y, z over Rational Field at the complement of ideal(x) defined by a julia-function
 ```
 """
 function Localization(S::AbsMultSet)

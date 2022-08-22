@@ -1,7 +1,7 @@
 import AbstractAlgebra.Ring
 import Base: intersect
 
-export Scheme
+export Scheme, AbsSpec
 export Spec, OO, defining_ideal, ambient_ring
 export spec_type, ring_type
 export base_ring_type, base_ring_elem_type, poly_type, poly_ring_type, mult_set_type, ring_type
@@ -33,6 +33,53 @@ struct EmptyScheme{BaseRingType, BaseRingElemType}<:Scheme{BaseRingType, BaseRin
   end
 end
 
+########################################################################
+#
+# Interface for affine schemes
+#
+########################################################################
+
+abstract type AbsSpec{BaseRingType<:Ring, BaseRingElemType<:RingElement} <: Scheme{BaseRingType, BaseRingElemType} end
+
+### essential getter methods
+
+function OO(X::AbsSpec) 
+  error("method not implemented for affine schemes of type $(typeof(X)); see the documentation for details")
+end
+
+### type getters
+ring_type(::Type{SpecType}) where {SpecType<:AbsSpec} = error("this must return the type of OO(X) for X of type $(SpecType); but it is not implemented")
+ring_type(X::AbsSpec) = ring_type(typeof(X))
+
+base_ring_type(::Type{SpecType}) where {BRT, BRET, SpecType<:AbsSpec{BRT, BRET}} = BRT
+base_ring_type(X::AbsSpec) = base_ring_type(typeof(X))
+base_ring_elem_type(::Type{SpecType}) where {BRT, BRET, SpecType<:AbsSpec{BRT, BRET}} = BRET
+base_ring_elem_type(X::AbsSpec) = base_ring_elem_type(typeof(X))
+
+### generically derived getters
+function base_ring(X::AbsSpec{BRT, BRET}) where {BRT, BRET}
+  return coefficient_ring(base_ring(OO(X)))::RET
+end
+
+### constructors
+#
+# Note that these default to the plain type Spec and must be overwritten 
+# if something more sophisticated should be returned!
+
+function subscheme(X::AbsSpec, I::Ideal)
+  base_ring(I) == localized_ring(OO(X)) || return subscheme(X, OO(X)(I)) # this will throw if coercion is not possible
+  return Spec(quo(localized_ring(OO(X)), I + localized_modulus(OO(X))))
+end
+
+function hypersurface_complement(X::AbsSpec, f::RingElem)
+  parent(f) == OO(X) || return hypersurface_complement(X, OO(X)(f))
+  h = lifted_numerator(f)
+  U = MPolyPowersOfElement(f)
+  W = Localization(OO(X), MPolyPowersOfElement(h))
+  return Spec(W)
+end
+
+
 @Markdown.doc """
     Spec{BRT, BRET, RT, RET, MST} <: Scheme{BRT, BRET}
 
@@ -42,7 +89,7 @@ polynomial algebra of type `RT` over a base ring ``k`` of type
 with elements of type `RET`, and ``S`` a multiplicative set in ``R`` of 
 type `MST`.
 """
-@attributes mutable struct Spec{BRT, BRET, RT, RET, MST} <: Scheme{BRT, BRET}
+@attributes mutable struct Spec{BRT, BRET, RT, RET, MST} <: AbsSpec{BRT, BRET}
   # the basic fields 
   OO::MPolyQuoLocalizedRing{BRT, BRET, RT, RET, MST}
   # fields for caching
@@ -371,7 +418,7 @@ end
 # Morphisms of affine schemes                                      #
 ########################################################################
 
-@attributes mutable struct SpecMor{DomainType<:Spec, CodomainType<:Spec, PullbackType<:MPolyQuoLocalizedRingHom}
+@attributes mutable struct SpecMor{DomainType<:AbsSpec, CodomainType<:AbsSpec, PullbackType<:Hecke.Map}
   domain::DomainType
   codomain::CodomainType
   pullback::PullbackType
@@ -381,7 +428,7 @@ end
       Y::CodomainType,
       pullback::PullbackType;
       check::Bool=true
-    ) where {DomainType<:Spec, CodomainType<:Spec, PullbackType<:MPolyQuoLocalizedRingHom}
+    ) where {DomainType<:AbsSpec, CodomainType<:AbsSpec, PullbackType}
     OO(X) == codomain(pullback) || error("the coordinate ring of the domain does not coincide with the codomain of the pullback")
     OO(Y) == domain(pullback) || error("the coordinate ring of the codomain does not coincide with the domain of the pullback")
     if check
@@ -391,7 +438,7 @@ end
   end
 end
 
-function morphism_type(::Type{SpecType1}, ::Type{SpecType2}) where {SpecType1<:Spec, SpecType2<:Spec}
+function morphism_type(::Type{SpecType1}, ::Type{SpecType2}) where {SpecType1<:AbsSpec, SpecType2<:AbsSpec}
   return SpecMor{SpecType1, SpecType1, morphism_type(ring_type(SpecType2), ring_type(SpecType1))}
 end
 

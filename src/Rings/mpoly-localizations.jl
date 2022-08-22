@@ -969,7 +969,6 @@ function Localization(
   issubset(S, inverted_set(W)) && return W
   U = S*inverted_set(W)
   L, _ = Localization(U)
-  #return L, MapFromFunc((x->(L(numerator(x), denominator(x), check=false))), W, L)
   return L, MPolyLocalizedRingHom(W, L, hom(base_ring(W), L, L.(gens(base_ring(W)))), check=false)
 end
 
@@ -993,7 +992,6 @@ function Localization(
   h = gcd(prod(g), f)
   L = MPolyLocalizedRing(R, MPolyPowersOfElement(R, vcat(g, divexact(f, h))))
   return L, MPolyLocalizedRingHom(W, L, hom(base_ring(W), L, L.(gens(base_ring(W)))), check=false)
-  #return L, MapFromFunc((x->L(numerator(x), denominator(x), check=false)), W, L)
 end
 
 function Localization(
@@ -1005,7 +1003,6 @@ function Localization(
     V = Localization(V, f)
   end
   return V, MPolyLocalizedRingHom(W, V, hom(base_ring(W), V, V.(gens(base_ring(W)))), check=false)
-  #return V, MapFromFunc((x->V(numerator(x), denominator(x), check=false)), W, V)
 end
 
 ### generation of random elements 
