@@ -12,5 +12,6 @@ include("Schemes/Glueing.jl")
 include("Schemes/ProjectiveSchemes.jl")
 include("Schemes/CoveredScheme.jl")
 include("Schemes/AffineCurve.jl")
+include("Schemes/GroupSchemes/GroupSchemes.jl")
 
 include("Matrix/matrix.jl")

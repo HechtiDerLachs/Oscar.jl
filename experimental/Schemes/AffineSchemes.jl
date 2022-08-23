@@ -12,7 +12,7 @@ export is_open_embedding, is_closed_embedding, is_canonically_isomorphic, hypers
 export closure, product
 
 export SpecMor, morphism_type
-export pullback, domain, codomain, preimage, restrict, graph, identity_map, inclusion_map, is_isomorphism, is_inverse_of
+export pullback, domain, codomain, preimage, restrict, graph, identity_map, inclusion_map, is_isomorphism, is_inverse_of, is_identity_map, lift_map
 
 export strict_modulus
 
@@ -512,6 +512,8 @@ function is_inverse_of(f::S, g::T) where {S<:SpecMor, T<:SpecMor}
   return is_isomorphism(f) && (inverse(f) == g)
 end
 
+is_identity_map(f::SpecMor) = is_isomorphism(f) && is_inverse_of(f, f)
+
 function inverse(f::SpecMor) 
   if !has_attribute(f, :inverse) 
     is_isomorphism(f) || error("the given morphism is not an isomorphism")
@@ -529,7 +531,9 @@ function product(X::Spec, Y::Spec)
   error("`product(X, Y)` not implemented for X of type $(typeof(X)) and Y of type $(typeof(Y))")
 end
 
-function product(X::Spec{BRT, BRET, RT, RET, MST}, Y::Spec{BRT, BRET, RT, RET, MST}) where {BRT, BRET, RT, RET, MST<:MPolyPowersOfElement}
+function product(X::Spec{BRT, BRET, RT, RET, MST}, Y::Spec{BRT, BRET, RT, RET, MST};
+    change_var_names_to::Vector{String}=["", ""]
+  ) where {BRT, BRET, RT, RET, MST<:MPolyPowersOfElement}
   K = OO(X)
   L = OO(Y) 
   V = localized_ring(K)
@@ -541,7 +545,19 @@ function product(X::Spec{BRT, BRET, RT, RET, MST}, Y::Spec{BRT, BRET, RT, RET, M
 
   m = length(gens(R))
   n = length(gens(S))
-  RS, z = PolynomialRing(k, vcat(symbols(R), symbols(S)))
+  new_symb = Symbol[]
+  if length(change_var_names_to[1]) == 0
+    new_symb = symbols(R)
+  else 
+    new_symb = Symbol.([change_var_names_to[1]*"$i" for i in 1:ngens(R)])
+  end
+  if length(change_var_names_to[2]) == 0
+    new_symb = vcat(new_symb, symbols(S))
+  else 
+    new_symb = vcat(new_symb, Symbol.([change_var_names_to[2]*"$i" for i in 1:ngens(S)]))
+  end
+  @show new_symb
+  RS, z = PolynomialRing(k, new_symb)
   inc1 = hom(R, RS, gens(RS)[1:m])
   inc2 = hom(S, RS, gens(RS)[m+1:m+n])
   IX = ideal(RS, inc1.(gens(modulus(OO(X)))))
@@ -567,6 +583,118 @@ function graph(f::SpecMor{<:Spec{<:Any, <:Any, <:Any, <:Any, <:MPolyPowersOfElem
   I = ideal(localized_ring(OO(XxY)), lift.(pb_X.(images(pb_f)) - pb_Y.(gens(OO(Y)))))
   G = subscheme(XxY, I)
   return G, restrict(prX, G, X), restrict(prY, G, Y)
+end
+
+@Markdown.doc """
+    lift_map(f::SpecMor, g::SpecMor)
+
+For morphisms ``f : Y → X`` and ``g : Z → X`` this function attempts 
+to compute a lift ``h : Y → Z`` such that ``f = g ∘ h``.
+"""
+function lift_map(
+    f::SpecMor{SpecType, SpecType, <:Any}, 
+    g::SpecMor{SpecType, SpecType, <:Any}
+  ) where {SpecType<:Spec{<:Any, <:Any, <:Any, <:Any, <:MPolyPowersOfElement}}
+  Y = domain(f)
+  X = codomain(f)
+  X == codomain(g) || error("maps need to have the same codomain")
+  Z = domain(g)
+  YxZ, pY, pZ = fiber_product(f, g)
+  @infiltrate
+  find_section(pY)
+end
+
+@Markdown.doc """
+    find_section(f::SpecMor)
+
+For a morphism ``f : X → Y`` this function tries to compute a 
+morphism ``h : Y → X`` such that ``f ∘ h = Idₓ``.
+"""
+function find_section(
+    f::SpecMor{SpecType, SpecType, <:Any}
+  ) where {SpecType<:Spec{<:Any, <:Any, <:Any, <:Any, <:MPolyPowersOfElement}}
+  X = domain(f)
+  Y = codomain(f)
+  RX = base_ring(OO(X))
+  RY = base_ring(OO(Y))
+  kk = coefficient_ring(RX)
+  kk == coefficient_ring(RY) || error("schemes must be defined over the same base ring")
+
+  # We realize both OO(X) and OO(Y) as affine algebras using Rabinowitsch's trick 
+  # and the morphism between them as a morphism of algebras. 
+  # Then we compute the ideal I defining the graph of f. 
+  # Let o be an elimination ordering for I in the variables of OO(X).
+  # 
+  # Proposition: A section h of f exists iff the normal form of xᵢ w.r.t. 
+  # a Groebner basis G for o is a polynomial hᵢ depending only on the 
+  # variables of OO(Y). 
+  #
+  # proof. "⇒ " If a section h of f exists, then there are polynomials hᵢ
+  # in the variables y of OO(Y) such that xᵢ- hᵢ(y) is in the ideal I 
+  # of the graph of f for otherwise h could not be a section. The mere 
+  # existence of such elements in I assures that reduction of xᵢ must find 
+  # either hᵢ or some other polynomial in y.
+  #
+  # "⇐ " If the reduction of every xᵢ is a polynomial hᵢ(y) in the variables 
+  # of Y, then we can certainly use them to build a section.
+  #                                                                     □
+  #
+  # Note that here we consider the extra variables θ₁ and θ₂ introduced 
+  # for Rabinowitsch's trick as variables of OO(X) and OO(Y), respectively. 
+  R, _ = PolynomialRing(kk, vcat(symbols(RX), symbols(RY), [Symbol("θ₁"), Symbol("θ₂")]))
+  x = gens(R)[1:ngens(RX)]
+  y = gens(R)[ngens(RX)+1:ngens(RX)+ngens(RY)]
+  theta1 = gens(R)[end-1]
+  theta2 = gens(R)[end]
+  pbX = hom(RX, R, x)
+  pbY = hom(RY, R, y)
+  I = ideal(R, pbX.(gens(modulus(OO(X))))) + ideal(R, pbY.(gens(modulus(OO(Y))))) 
+  I = I + ideal(R, one(R) - theta1*prod(pbX.(denominators(inverted_set(OO(X))))))
+  I = I + ideal(R, one(R) - theta2*prod(pbY.(denominators(inverted_set(OO(Y))))))
+
+  A, prA = quo(R, I)
+  pb1 = hom(OO(X), A, compose(pbX, prA).(gens(RX)))
+  pb2 = hom(OO(Y), A, compose(pbY, prA).(gens(RY)))
+
+  # here comes the ideal for the graph:
+  J = I + ideal(R, [lift(pb1(pullback(f)(y))) - lift(prA(pbY(y))) for y in gens(RY)])
+
+  B, prB = quo(R, J)
+  o = degrevlex([theta1])*degrevlex(x)*degrevlex([theta2])*degrevlex(y)
+  g = elem_type(OO(Y))[]
+  red_x = [normal_form(a, J, o) for a in x]
+  @infiltrate
+  for a in x 
+    tmp = normal_form(a, J, o)
+    if false # replace by a check whether tmp contains some x variable
+      error("lift does not exist")
+    end
+    push!(g, evaluate(tmp, vcat([zero(OO(Y)) for i in 1:ngens(RX)], [OO(Y)(t) for t in gens(RY)], [one(OO(Y))], [inv(OO(Y)(prod(denominators(inverted_set(OO(Y))))))])))
+  end
+  pb_lift = hom(OO(X), OO(Y), g)
+  return SpecMor(Y, X, pb_lift)
+end
+
+@Markdown.doc """
+    fiber_product(f::SpecMor, g::SpecMor)
+
+For morphisms ``f : Y → X`` and ``g : Z → X`` return the fiber 
+product ``Y ×ₓ Z`` over ``X`` together with its two canonical 
+projections.
+"""
+function fiber_product(
+    f::SpecMor{SpecType, SpecType, <:Any}, 
+    g::SpecMor{SpecType, SpecType, <:Any}
+  ) where {SpecType<:Spec{<:Any, <:Any, <:Any, <:Any, <:MPolyPowersOfElement}}
+  Y = domain(f)
+  X = codomain(f)
+  X == codomain(g) || error("maps need to have the same codomain")
+  Z = domain(g)
+  YxZ, pY, pZ = product(Y, Z)
+  RX = base_ring(OO(X))
+  #I = ideal(OO(YxZ), [pullback(pY)(pullback(f)(x)) - pullback(pZ)(pullback(g)(x)) for x in gens(RX)])
+  W = subscheme(YxZ, [pullback(pY)(pullback(f)(x)) - pullback(pZ)(pullback(g)(x)) for x in gens(RX)])
+  return W, restrict(pY, W, Y, check=false), restrict(pZ, W, Z, check=false)
 end
 
 function partition_of_unity(X::Spec{BRT, BRET, RT, RET, MST},
