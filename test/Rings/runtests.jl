@@ -28,3 +28,5 @@ include("MPolyAnyMap/AffineAlgebras.jl")
 include("FreeAssAlgIdeal-test.jl")
 
 include("binomial-ideals-test.jl")
+
+include("comparison_from_orderings.jl")
