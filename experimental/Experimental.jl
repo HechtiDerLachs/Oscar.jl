@@ -13,3 +13,4 @@ include("Schemes/ProjectiveSchemes.jl")
 include("Schemes/CoveredScheme.jl")
 
 include("Matrix/matrix.jl")
+include("comparison_from_orderings.jl")
