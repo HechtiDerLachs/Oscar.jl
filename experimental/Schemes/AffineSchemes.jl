@@ -600,7 +600,6 @@ function lift_map(
   X == codomain(g) || error("maps need to have the same codomain")
   Z = domain(g)
   YxZ, pY, pZ = fiber_product(f, g)
-  @infiltrate
   find_section(pY)
 end
 
@@ -663,7 +662,6 @@ function find_section(
   o = degrevlex([theta1])*degrevlex(x)*degrevlex([theta2])*degrevlex(y)
   g = elem_type(OO(Y))[]
   red_x = [normal_form(a, J, o) for a in x]
-  @infiltrate
   for a in x 
     tmp = normal_form(a, J, o)
     if false # replace by a check whether tmp contains some x variable
