@@ -109,9 +109,7 @@ end
       neutral_element::Vector{T};
       check::Bool=true
     ) where {T<:FieldElem}
-    typeof(ground_field(X)) === BRT || error("scheme is not defined over a field of the correct type")
-    elem_type(ground_field(X)) === BRET || error("scheme is not defined over a field of the correct type")
-    all(x->(parent(x) == ground_field(X)), neutral_element) || error("coordinates of the neutral element do not belong to the correct field")
+    all(x->(parent(x) == coefficient_ring(base_ring(OO(X)))), neutral_element) || error("coordinates of the neutral element do not belong to the correct field")
     domain(p1) == XxX || error("domain of first projection not compatible")
     domain(p2) == XxX || error("domain of second projection not compatible")
     codomain(p1) == X || error("codomain of first projection not compatible")
@@ -140,6 +138,7 @@ end
   end
 end
 
+underlying_scheme(G::AffineGroupScheme) = G.X
 product_over_ground_field(G::AffineGroupScheme) = G.product_over_ground_field
 diagonal_embedding(G::AffineGroupScheme) = G.diagonal_embedding
 first_projection(G::AffineGroupScheme) = G.first_projection

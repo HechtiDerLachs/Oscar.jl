@@ -3,11 +3,12 @@
 #E = QQ.([1, 0, 0, 1, 0, 1])
 #G = AffineMatrixGroup(M, ideal(R, [x[2], x[3]]), E)
 
-R, x = QQ["x₁", "x₂"]
-S, y = QQ["y₁", "y₂"]
-X = Spec(R)
-Y = Spec(S)
-f = SpecMor(X, Y, [x[1]^2, x[2]^3])
-P = subscheme(Y, [y[1]-4, y[2]-9])
-inc = inclusion_map(P, Y)
-lift_map(inc, f)
+G = special_linear_group(2, QQ)
+rho = canonical_representation(G)
+rep = induced_representation_on_symmetric_power(G, 2)
+
+O = omega_process(G)
+nullcone_ideal(rep)
+@show "blubb"
+reynolds_operator_from_omega_process(rep)
+

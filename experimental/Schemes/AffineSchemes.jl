@@ -44,7 +44,7 @@ abstract type AbsSpec{BaseRingType<:Ring, BaseRingElemType<:RingElement} <: Sche
 ### essential getter methods
 
 function OO(X::AbsSpec) 
-  error("method not implemented for affine schemes of type $(typeof(X)); see the documentation for details")
+  OO(underlying_scheme(X))
 end
 
 ### type getters
@@ -58,7 +58,7 @@ base_ring_elem_type(X::AbsSpec) = base_ring_elem_type(typeof(X))
 
 ### generically derived getters
 function base_ring(X::AbsSpec{BRT, BRET}) where {BRT, BRET}
-  return coefficient_ring(base_ring(OO(X)))::RET
+  return coefficient_ring(base_ring(OO(X)))::BRT
 end
 
 ### constructors
@@ -556,7 +556,6 @@ function product(X::Spec{BRT, BRET, RT, RET, MST}, Y::Spec{BRT, BRET, RT, RET, M
   else 
     new_symb = vcat(new_symb, Symbol.([change_var_names_to[2]*"$i" for i in 1:ngens(S)]))
   end
-  @show new_symb
   RS, z = PolynomialRing(k, new_symb)
   inc1 = hom(R, RS, gens(RS)[1:m])
   inc2 = hom(S, RS, gens(RS)[m+1:m+n])
@@ -595,12 +594,7 @@ function lift_map(
     f::SpecMor{SpecType, SpecType, <:Any}, 
     g::SpecMor{SpecType, SpecType, <:Any}
   ) where {SpecType<:Spec{<:Any, <:Any, <:Any, <:Any, <:MPolyPowersOfElement}}
-  Y = domain(f)
-  X = codomain(f)
-  X == codomain(g) || error("maps need to have the same codomain")
-  Z = domain(g)
-  YxZ, pY, pZ = fiber_product(f, g)
-  find_section(pY)
+  error("not implemented")
 end
 
 @Markdown.doc """
@@ -612,65 +606,7 @@ morphism ``h : Y → X`` such that ``f ∘ h = Idₓ``.
 function find_section(
     f::SpecMor{SpecType, SpecType, <:Any}
   ) where {SpecType<:Spec{<:Any, <:Any, <:Any, <:Any, <:MPolyPowersOfElement}}
-  X = domain(f)
-  Y = codomain(f)
-  RX = base_ring(OO(X))
-  RY = base_ring(OO(Y))
-  kk = coefficient_ring(RX)
-  kk == coefficient_ring(RY) || error("schemes must be defined over the same base ring")
-
-  # We realize both OO(X) and OO(Y) as affine algebras using Rabinowitsch's trick 
-  # and the morphism between them as a morphism of algebras. 
-  # Then we compute the ideal I defining the graph of f. 
-  # Let o be an elimination ordering for I in the variables of OO(X).
-  # 
-  # Proposition: A section h of f exists iff the normal form of xᵢ w.r.t. 
-  # a Groebner basis G for o is a polynomial hᵢ depending only on the 
-  # variables of OO(Y). 
-  #
-  # proof. "⇒ " If a section h of f exists, then there are polynomials hᵢ
-  # in the variables y of OO(Y) such that xᵢ- hᵢ(y) is in the ideal I 
-  # of the graph of f for otherwise h could not be a section. The mere 
-  # existence of such elements in I assures that reduction of xᵢ must find 
-  # either hᵢ or some other polynomial in y.
-  #
-  # "⇐ " If the reduction of every xᵢ is a polynomial hᵢ(y) in the variables 
-  # of Y, then we can certainly use them to build a section.
-  #                                                                     □
-  #
-  # Note that here we consider the extra variables θ₁ and θ₂ introduced 
-  # for Rabinowitsch's trick as variables of OO(X) and OO(Y), respectively. 
-  R, _ = PolynomialRing(kk, vcat(symbols(RX), symbols(RY), [Symbol("θ₁"), Symbol("θ₂")]))
-  x = gens(R)[1:ngens(RX)]
-  y = gens(R)[ngens(RX)+1:ngens(RX)+ngens(RY)]
-  theta1 = gens(R)[end-1]
-  theta2 = gens(R)[end]
-  pbX = hom(RX, R, x)
-  pbY = hom(RY, R, y)
-  I = ideal(R, pbX.(gens(modulus(OO(X))))) + ideal(R, pbY.(gens(modulus(OO(Y))))) 
-  I = I + ideal(R, one(R) - theta1*prod(pbX.(denominators(inverted_set(OO(X))))))
-  I = I + ideal(R, one(R) - theta2*prod(pbY.(denominators(inverted_set(OO(Y))))))
-
-  A, prA = quo(R, I)
-  pb1 = hom(OO(X), A, compose(pbX, prA).(gens(RX)))
-  pb2 = hom(OO(Y), A, compose(pbY, prA).(gens(RY)))
-
-  # here comes the ideal for the graph:
-  J = I + ideal(R, [lift(pb1(pullback(f)(y))) - lift(prA(pbY(y))) for y in gens(RY)])
-
-  B, prB = quo(R, J)
-  o = degrevlex([theta1])*degrevlex(x)*degrevlex([theta2])*degrevlex(y)
-  g = elem_type(OO(Y))[]
-  red_x = [normal_form(a, J, o) for a in x]
-  for a in x 
-    tmp = normal_form(a, J, o)
-    if false # replace by a check whether tmp contains some x variable
-      error("lift does not exist")
-    end
-    push!(g, evaluate(tmp, vcat([zero(OO(Y)) for i in 1:ngens(RX)], [OO(Y)(t) for t in gens(RY)], [one(OO(Y))], [inv(OO(Y)(prod(denominators(inverted_set(OO(Y))))))])))
-  end
-  pb_lift = hom(OO(X), OO(Y), g)
-  return SpecMor(Y, X, pb_lift)
+  error("not implemented")
 end
 
 @Markdown.doc """
