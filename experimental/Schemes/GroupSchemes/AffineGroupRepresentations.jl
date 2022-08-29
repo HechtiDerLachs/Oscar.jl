@@ -6,6 +6,17 @@ export canonical_representation, induced_representation_on_symmetric_power
 
 export omega_process, nullcone_ideal, reynolds_operator_from_omega_process, check_invariance_function, invariant_ring
 
+########################################################################
+# 
+# A representation of an affine group ``G ⊂ 𝔸ⁿ`` on a finite 
+# dimensional vector space ``V``. 
+#
+# The information on the representation is specified and stored 
+# via a matrix ``A ∈ 𝒪(G)ʳˣʳ`` describing the morphism 
+# ``G → Aut(V)`` with ``r = dim V``; the so-called `coordinate_matrix`
+# of the representation.
+#
+########################################################################
 @attributes mutable struct AffineGroupRepresentation{BRT<:Ring, BRET<:RingElem, 
                                                      GroupType<:AbsAffineGroupScheme, 
                                                      MatrixType<:MatrixElem
@@ -52,6 +63,12 @@ function (rho::AffineGroupRepresentation{<:Any, <:Any, <:AffineMatrixGroup, <:An
   return map_entries(f->(evaluate(f, a)), G.M)
 end
 
+###
+# For a given representation ``ρ : G → Aut(V)`` this returns a 
+# function `check(f::MPolyElem)` that takes a polynomial ``f`` on 
+# the vector space ``V`` and returns `true` if ``f`` is ``ρ``-invariant
+# and `false` otherwise.
+
 @attr function check_invariance_function(rho::AffineGroupRepresentation)
   S = vector_space_poly_ring(rho)
   A = coordinate_matrix(rho)
@@ -71,8 +88,13 @@ end
   return func
 end
 
+### A constructor for the canonical representation of a matrix group
 canonical_representation(G::AffineMatrixGroup) = AffineGroupRepresentation(G, coordinate_matrix(G))
 
+### 
+# For a monomial x this returns the index i for 
+# which it appears in the iteration over all monomials 
+# in the base ring of the same degree as x.
 function _linear_index_in_all_monomials(x::MPolyElem)
   d = total_degree(x)
   R = parent(x)
@@ -90,6 +112,13 @@ end
 # space. By now, this is determined by the iterator Oscar.all_monomials, 
 # but the whole construction should eventually be replaced by calls to 
 # a function like `symmetric_power(V::VectorSpace)` and related mappings.
+@Markdown.doc """
+    induced_representation_on_symmetric_power(G::AffineMatrixGroup, p::Int)
+
+For a matrix group ``G ⊂ 𝕜ᵐˣᵐ`` defined on a vector space ``V ≅ 𝕜ᵐ`` 
+and an integer ``p`` this returns the induced representation on 
+``Symᵖ Vᵛ``, the ``p``-th symmetric power of the dual of ``V``.
+"""
 function induced_representation_on_symmetric_power(G::AffineMatrixGroup, p::Int)
   M = coordinate_matrix(G)
   m = ncols(M)
@@ -150,6 +179,14 @@ function omega_process(G::AffineMatrixGroup)
   return as_constant_differential_operator(det(coordinate_matrix(G)))
 end
 
+@Markdown.doc """
+    nullcone_ideal(rho::AffineGroupRepresentation)
+
+For a representation `rho` of a linearly reductive affine matrix group 
+``G`` on a vector space ``V`` this computes the ideal ``I ⊂ S`` 
+in the polynomial ring ``S`` on ``V`` which describes the zero fiber 
+of the projection to the categorical quotient ``V → V//G``.
+"""
 @attr MPolyIdeal function nullcone_ideal(
     rho::AffineGroupRepresentation{<:Any, <:Any, <:AffineGroupType, <:Any}
   ) where {
@@ -263,5 +300,25 @@ end
   K = kernel(f)
   Q, p = quo(A, K)
   return Q, hom(Q, S, inv, check=false)
+end
+
+@attr function lift_to_invariant_polynomial_func(rho::AffineGroupRepresentation)
+  S = vector_space_poly_ring(rho)
+  A, pr = invariant_ring(rho)
+  I = nullcone_ideal(rho)
+  rop = reynolds_operator(rho)
+  check_func = check_invariance_function(rho)
+
+  function func(f::MPolyElem; check::Bool=true)
+    parent(f) == S || error("polynomial does not belong to the correct ring")
+    #is_homogeneous(f) || error("only homogeneous input is allowed") # does not work for now
+    check_func(f) || error("the given polynomial is not an invariant")
+
+    is_constant(f) || return A(first(coefficients(f)))
+    c = coordinates(f, I)
+    return sum([A[i]*func(rop(c[i]), check=false) for i in 1:length(c)])
+  end
+
+  return MapFromFunc(func, S, A)
 end
 

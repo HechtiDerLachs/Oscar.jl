@@ -3,18 +3,18 @@ export multiplication_map, product_over_ground_field, inverse_map, first_inclusi
 
 export AffineGroupScheme
 
-abstract type AbsAffineGroupScheme{BRT, BRET} <: AbsSpec{BRT, BRET} end
-
 ########################################################################
 #
 # The following documents the interface for the functionality of an 
-# affine group scheme for the abstract type.
+# abstract affine group scheme.
 #
 # Below you will find a concrete type that can be used for a default 
 # implementation of these methods by forwarding it via the 
 # `underlying_group_scheme` function.
 #
 ########################################################################
+
+abstract type AbsAffineGroupScheme{BRT, BRET} <: AbsSpec{BRT, BRET} end
 
 @Markdown.doc """
     multiplication_map(G::AbsAffineGroupScheme)
@@ -130,7 +130,14 @@ underlying_scheme(G::AbsAffineGroupScheme) = underlying_scheme(underlying_group_
 underlying_scheme_type(::Type{T}) where {T<:AbsAffineGroupScheme} = underlying_scheme_type(underlying_group_scheme_type(T))
 
 
-
+########################################################################
+#
+# A minimal implementation of the interface of an affine group scheme. 
+#
+# This will usually be used as an internal field to more specific 
+# types of affine group schemes, see the example `_kk_star` below.
+#
+########################################################################
 @attributes mutable struct AffineGroupScheme{BRT, BRET, SpecType} <: AbsAffineGroupScheme{BRT, BRET}
   X::SpecType
   product_over_ground_field::AbsSpec
@@ -198,7 +205,17 @@ underlying_scheme_type(::Type{T}) where {T<:AbsAffineGroupScheme} = underlying_s
   end
 end
 
+### essential internal getters for forwarding of the scheme functionality
 underlying_scheme(G::AffineGroupScheme) = G.X
+
+### type getters
+function underlying_scheme_type(
+    ::Type{AffineGroupSchemeType}
+  ) where {SpecType, AffineGroupSchemeType<:AffineGroupScheme{<:Any, <:Any, SpecType}}
+  return SpecType
+end
+
+### user-facing essential getters
 product_over_ground_field(G::AffineGroupScheme) = G.product_over_ground_field
 diagonal_embedding(G::AffineGroupScheme) = G.diagonal_embedding
 first_projection(G::AffineGroupScheme) = G.first_projection
@@ -209,17 +226,11 @@ multiplication_map(G::AffineGroupScheme) = G.multiplication_map
 inverse_map(G::AffineGroupScheme) = G.inverse_map
 neutral_element_coordinates(G::AffineGroupScheme) = G.neutral_element
 
-### type getters
-function underlying_scheme_type(
-    ::Type{AffineGroupSchemeType}
-  ) where {SpecType, AffineGroupSchemeType<:AffineGroupScheme{<:Any, <:Any, SpecType}}
-  return SpecType
-end
 
 ########################################################################
 # 
 # The following is an example of a concrete implementation of an 
-# affine group scheme of type `<:AbsAffineGroupScheme`, using the 
+# affine group scheme of type `<:AbsAffineGroupScheme` using the 
 # concrete minimal type `AffineGroupScheme` in the background. 
 #
 ########################################################################
