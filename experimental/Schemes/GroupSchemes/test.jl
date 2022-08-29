@@ -17,6 +17,15 @@ check = check_invariance_function(rep)
 
 A, m = invariant_ring(rep)
 
+println("done.")
+l = lift_to_invariant_polynomial_func(rep)
+[l(4*y) for y in g]
+[l(y^2) for y in g]
+p = g[1]^3-5*g[2]^2 - 7*g[3]*g[1]
+h = l(p)
+h == A[1]^3-5*A[2]^2 - 7*A[3]*A[1]
+
+
 #
 #R, (z1, z2, z3, z4, x1, x2, x3) = QQ["z₁", "z₂", "z₃", "z₄", "x₁", "x₂", "x₃"]
 #

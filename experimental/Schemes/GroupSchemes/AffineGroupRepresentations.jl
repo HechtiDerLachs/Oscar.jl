@@ -4,7 +4,7 @@ export affine_group_scheme, reynolds_operator, set_reynolds_operator!, vector_sp
 
 export canonical_representation, induced_representation_on_symmetric_power
 
-export omega_process, nullcone_ideal, reynolds_operator_from_omega_process, check_invariance_function, invariant_ring
+export omega_process, nullcone_ideal, reynolds_operator_from_omega_process, check_invariance_function, invariant_ring, lift_to_invariant_polynomial_func
 
 ########################################################################
 # 
@@ -82,7 +82,8 @@ end
   function func(f::MPolyElem)
     parent(f) == S || error("polynomial does not belong to the correct ring")
     F = StoPS(f)
-    return F == evaluate(F, w)
+    result = (F == evaluate(F, w))
+    return result
   end
 
   return func
@@ -158,6 +159,7 @@ function as_constant_differential_operator(f::MPolyElem)
   R = parent(f)
   function p(g::MPolyElem)
     parent(g) == R || error("element belongs to the wrong ring")
+    is_zero(g) && return g
     result = zero(g)
     for (c, e) in zip(coefficients(f), exponent_vectors(f))
       h = copy(g)
@@ -223,7 +225,10 @@ of the projection to the categorical quotient ``V → V//G``.
   
   S = vector_space_poly_ring(rho)
   v_ext = vcat([zero(S) for i in 1:ngens(R)], gens(S), [zero(S) for i in 1:m])
-  return ideal(S, (x->(evaluate(x, v_ext))).(gens(K)))
+  g = (x->(evaluate(x, v_ext))).(gens(K))
+  rop = reynolds_operator(rho)
+  g = rop.(g)
+  return ideal(S, g)
 end
 
 function reynolds_operator_from_omega_process(
@@ -272,14 +277,27 @@ function reynolds_operator_from_omega_process(
 #
 # o = lex(t)*lex(v)
 #
-  function reynolds(f::MPolyElem)
+  function reynolds(f::MPolyElem; raw::Bool=false)
     parent(f) == S || error("polynomial does not belong to the correct ring")
+    is_zero(f) && return f
     h = evaluate(f, w)
     x_ext = vcat([zero(S) for i in 1:ngens(R)], gens(S))
-    while iszero(evaluate(h, x_ext))
+    g1 = evaluate(h, x_ext)
+    while iszero(g1)
       h = Omega_t(h)
+      iszero(h) && return zero(f)
+      g1 = evaluate(h, x_ext)
     end
-    return evaluate(h, x_ext)
+    # Find out about the factor c
+    # The raw version of the operator is c*projection.
+    # In order to know c, we apply the raw version twice 
+    # and compare.
+    raw && return g1
+    g2 = reynolds(g1, raw=true)
+    check, c = divides(g2, g1)
+    check || error("omega process does not give a projection")
+    result =  div(g1, c)
+    return result
   end
 
   return reynolds
@@ -309,14 +327,30 @@ end
   rop = reynolds_operator(rho)
   check_func = check_invariance_function(rho)
 
-  function func(f::MPolyElem; check::Bool=true)
-    parent(f) == S || error("polynomial does not belong to the correct ring")
-    #is_homogeneous(f) || error("only homogeneous input is allowed") # does not work for now
-    check_func(f) || error("the given polynomial is not an invariant")
+  Sgr, _ = grade(S)
 
-    is_constant(f) || return A(first(coefficients(f)))
+  function is_homog(f::MPolyElem)
+    return is_homogeneous(Sgr(f))
+  end
+
+  function homog_comp(f::MPolyElem)
+    return [a.f for a in collect(values(homogeneous_components(Sgr(f))))]
+  end
+
+  function func(f::MPolyElem; check::Bool=false)
+    parent(f) == S || error("polynomial does not belong to the correct ring")
+    is_zero(f) && return zero(A)
+    if !is_homog(f) 
+      return sum([func(a) for a in homog_comp(f)])
+    end
+    check && (check_func(f) || error("the given polynomial is not an invariant"))
+
+    is_constant(f) && return A(first(coefficients(f)))
     c = coordinates(f, I)
-    return sum([A[i]*func(rop(c[i]), check=false) for i in 1:length(c)])
+    c = rop.(c)
+    rec_res = [func(a, check=false) for a in c]
+    res = sum([A[i]*rec_res[i] for i in 1:length(c)])
+    return res
   end
 
   return MapFromFunc(func, S, A)
