@@ -1,10 +1,10 @@
 export AffineGroupRepresentation
 
-export affine_group_scheme, reynolds_operator, set_reynolds_operator!
+export affine_group_scheme, reynolds_operator, set_reynolds_operator!, vector_space_poly_ring
 
 export canonical_representation, induced_representation_on_symmetric_power
 
-export omega_process, nullcone_ideal, reynolds_operator_from_omega_process
+export omega_process, nullcone_ideal, reynolds_operator_from_omega_process, check_invariance_function, invariant_ring
 
 @attributes mutable struct AffineGroupRepresentation{BRT<:Ring, BRET<:RingElem, 
                                                      GroupType<:AbsAffineGroupScheme, 
@@ -13,11 +13,9 @@ export omega_process, nullcone_ideal, reynolds_operator_from_omega_process
   G::GroupType
   M::MatrixType
   S::MPolyRing # the polynomial ring for the vector space
-  R::Union{Hecke.Map, Nothing}
 
   function AffineGroupRepresentation(
       G::AbsAffineGroupScheme, M::MatrixElem; 
-      reynolds_operator::Union{Hecke.Map, Nothing}=nothing,
       var_names::Vector{String}=["v$i" for i in 1:nrows(M)],
       check::Bool=true
     )
@@ -31,23 +29,46 @@ export omega_process, nullcone_ideal, reynolds_operator_from_omega_process
       # check compatibility of group law with matrix multiplication, etc.
     end
 
-    return new{typeof(kk), elem_type(kk), typeof(G), typeof(Mconv)}(G, Mconv, S, reynolds_operator)
+    return new{typeof(kk), elem_type(kk), typeof(G), typeof(Mconv)}(G, Mconv, S)
   end
 end
 
 affine_group_scheme(rho::AffineGroupRepresentation) = rho.G
 coordinate_matrix(rho::AffineGroupRepresentation) = rho.M
-reynolds_operator(rho::AffineGroupRepresentation) = rho.R
 vector_space_poly_ring(rho::AffineGroupRepresentation) = rho.S
 
+@attr Union{Hecke.Map, Nothing} function reynolds_operator(rho::AffineGroupRepresentation) 
+  S = vector_space_poly_ring(rho)
+  return MapFromFunc(reynolds_operator_from_omega_process(rho), S, S)
+end
+
 function set_reynolds_operator!(rho::AffineGroupScheme, R::Hecke.Map)
-  rho.R = R
+  set_attribute!(rho, :reynolds_operator, R)
   return rho
 end
 
 function (rho::AffineGroupRepresentation{<:Any, <:Any, <:AffineMatrixGroup, <:Any})(A::MatrixElem)
   a = coordinates(affine_group_scheme(rho), A)
   return map_entries(f->(evaluate(f, a)), G.M)
+end
+
+@attr function check_invariance_function(rho::AffineGroupRepresentation)
+  S = vector_space_poly_ring(rho)
+  A = coordinate_matrix(rho)
+  P = base_ring(A)
+  PS, V = PolynomialRing(P, symbols(S))
+  StoPS = hom(S, PS, V)
+  APS = map_entries(x->PS(x), A)
+  W = MatrixSpace(PS, 1, length(V))(V)*APS
+  w = [W[1, i] for i in 1:length(W)]
+
+  function func(f::MPolyElem)
+    parent(f) == S || error("polynomial does not belong to the correct ring")
+    F = StoPS(f)
+    return F == evaluate(F, w)
+  end
+
+  return func
 end
 
 canonical_representation(G::AffineMatrixGroup) = AffineGroupRepresentation(G, coordinate_matrix(G))
@@ -176,7 +197,7 @@ function reynolds_operator_from_omega_process(
   G = affine_group_scheme(rho)
   A = coordinate_matrix(rho)
   M = coordinate_matrix(G)
-  all(x->(isone(lifted_denominator(x))), A) || error("reynolds operator from omega process not implemented for non-polynomial representations")
+  all(x->(isone(lifted_denominator(x))), A) || error("reynolds operator from omega process not implemented for non-polynomial representations; please make sure that the coordinate matrix for your representation has trivial denominators")
   A_lift = map_entries(x->(lifted_numerator(x)), A)
 
   R = base_ring(M)
@@ -193,30 +214,54 @@ function reynolds_operator_from_omega_process(
   W = V*T
   w = [W[1, i] for i in 1:ncols(W)]
   det_T = det(T)
-  Omega_t = as_constant_differential_operator(det(T))
+  det_M = RtoRS(det(M))
+  Omega_t = as_constant_differential_operator(det_M)
 
   StoRS = hom(S, RS, v)
 
-  function I_func(p::Int, q::Int, f::MPolyElem)
-    parent(f) == S || error("polynomial does not belong to the correct ring")
-    p > q && return zero(RS)
-    h = det_T^q*evaluate(f, [W[1, i] for i in 1:ncols(W)])
-    for i in 1:p
-      h = Omega_t(h)
-    end
-    return h
-  end
-
-  function I_func(g::Int, f::MPolyElem) 
-    return evaluate(I_func(g, 0, f), vcat([zero(S) for i in 1:ngens(R)], gens(S)))
-  end
-  @infiltrate
-
-  o = lex(t)*lex(v)
-
+# function I_func(p::Int, q::Int, f::MPolyElem)
+#   parent(f) == S || error("polynomial does not belong to the correct ring")
+#   p < q && return zero(RS)
+#   h = det_M^q*evaluate(f, [W[1, i] for i in 1:ncols(W)])
+#   for i in 1:p
+#     h = Omega_t(h)
+#   end
+#   return h
+# end
+#
+# function I_func(g::Int, f::MPolyElem) 
+#   return evaluate(I_func(g, 0, f), vcat([zero(S) for i in 1:ngens(R)], gens(S)))
+# end
+#
+# o = lex(t)*lex(v)
+#
   function reynolds(f::MPolyElem)
     parent(f) == S || error("polynomial does not belong to the correct ring")
-    
+    h = evaluate(f, w)
+    x_ext = vcat([zero(S) for i in 1:ngens(R)], gens(S))
+    while iszero(evaluate(h, x_ext))
+      h = Omega_t(h)
+    end
+    return evaluate(h, x_ext)
   end
 
+  return reynolds
 end
+
+@attr Tuple{<:MPolyQuo, <:Hecke.Map} function invariant_ring(rho::AffineGroupRepresentation)
+  S = vector_space_poly_ring(rho)
+  I = nullcone_ideal(rho)
+  R = reynolds_operator(rho)
+  inv = [R(g) for g in gens(I)]
+
+  #check = check_invariance_function(rho)
+  #@show [check(g) for g in inv]
+
+  kk = coefficient_ring(S)
+  A, y = PolynomialRing(kk, ["y$i" for i in 1:length(inv)])
+  f = hom(A, S, inv)
+  K = kernel(f)
+  Q, p = quo(A, K)
+  return Q, hom(Q, S, inv, check=false)
+end
+
