@@ -48,7 +48,7 @@ function OO(X::AbsSpec)
 end
 
 ### type getters
-ring_type(::Type{SpecType}) where {SpecType<:AbsSpec} = error("this must return the type of OO(X) for X of type $(SpecType); but it is not implemented")
+ring_type(::Type{SpecType}) where {SpecType<:AbsSpec} = ring_type(underlying_scheme_type(SpecType))
 ring_type(X::AbsSpec) = ring_type(typeof(X))
 
 base_ring_type(::Type{SpecType}) where {BRT, BRET, SpecType<:AbsSpec{BRT, BRET}} = BRT
@@ -439,10 +439,11 @@ end
 end
 
 function morphism_type(::Type{SpecType1}, ::Type{SpecType2}) where {SpecType1<:AbsSpec, SpecType2<:AbsSpec}
-  return SpecMor{SpecType1, SpecType1, morphism_type(ring_type(SpecType2), ring_type(SpecType1))}
+  return SpecMor{SpecType1, SpecType2, morphism_type(ring_type(SpecType2), ring_type(SpecType1))}
 end
 
 morphism_type(X::Spec, Y::Spec) = morphism_type(typeof(X), typeof(Y))
+morphism_type(X::AbsSpec, Y::AbsSpec) = morphism_type(typeof(X), typeof(Y))
 
 
 ### getter functions
@@ -460,7 +461,7 @@ function SpecMor(
   return SpecMor(X, Y, MPolyQuoLocalizedRingHom(OO(Y), OO(X), OO(X).(f), check=check), check=check)
 end
 
-identity_map(X::Spec) = SpecMor(X, X, gens(base_ring(OO(X))))
+identity_map(X::AbsSpec) = SpecMor(X, X, hom(OO(X), OO(X), gens(base_ring(OO(X))), check=false))
 inclusion_map(X::T, Y::T) where {T<:Spec} = SpecMor(X, Y, gens(base_ring(OO(Y))))
 
 function restrict(f::SpecMor, U::Spec, V::Spec; check::Bool=true)

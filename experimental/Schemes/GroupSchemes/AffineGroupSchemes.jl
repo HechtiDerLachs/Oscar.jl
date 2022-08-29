@@ -1,7 +1,20 @@
 export AbsAffineGroupScheme
 export multiplication_map, product_over_ground_field, inverse_map, first_inclusion, second_inclusion, diagonal_embedding, first_projection, second_projection
 
+export AffineGroupScheme
+
 abstract type AbsAffineGroupScheme{BRT, BRET} <: AbsSpec{BRT, BRET} end
+
+########################################################################
+#
+# The following documents the interface for the functionality of an 
+# affine group scheme for the abstract type.
+#
+# Below you will find a concrete type that can be used for a default 
+# implementation of these methods by forwarding it via the 
+# `underlying_group_scheme` function.
+#
+########################################################################
 
 @Markdown.doc """
     multiplication_map(G::AbsAffineGroupScheme)
@@ -9,8 +22,10 @@ abstract type AbsAffineGroupScheme{BRT, BRET} <: AbsSpec{BRT, BRET} end
 Returns a morphism of affine schemes `G × G → G` 
 where `G × G` is the `product_over_ground_field` of `G`.
 """
-function multiplication_map(G::AbsAffineGroupScheme)
-  return multiplication_map(underlying_group_scheme(G))
+@attr SpecMor function multiplication_map(G::AbsAffineGroupScheme)
+  return SpecMor(product_over_ground_field(G), G, 
+                 pullback(multiplication_map(underlying_group_scheme(G)))
+                )
 end
 
 @Markdown.doc """
@@ -29,8 +44,10 @@ end
 For a group scheme ``G`` this returns the projection ``G × G → G, (g, h) ↦ g`` 
 where ``G×G`` is the `product_over_ground_field` of ``G``.
 """
-function first_projection(G::AbsAffineGroupScheme)
-  return first_projection(underlying_group_scheme(G))
+@attr SpecMor function first_projection(G::AbsAffineGroupScheme)
+  return SpecMor(product_over_ground_field(G), G, 
+                 pullback(first_projection(underlying_group_scheme(G)))
+                )
 end
 
 @Markdown.doc """
@@ -39,8 +56,10 @@ end
 For a group scheme ``G`` this returns the projection ``G × G → G, (g, h) ↦ h`` 
 where ``G×G`` is the `product_over_ground_field` of ``G``.
 """
-function second_projection(G::AbsAffineGroupScheme)
-  return second_projection(underlying_group_scheme(G))
+@attr SpecMor function second_projection(G::AbsAffineGroupScheme)
+  return SpecMor(product_over_ground_field(G), G, 
+                 pullback(second_projection(underlying_group_scheme(G)))
+                )
 end
 
 @Markdown.doc """
@@ -49,8 +68,8 @@ end
 Returns the map `G → G` assigning to each point ``g ∈ G`` its inverse 
 ``g⁻¹`` with respect to the group law on ``G``.
 """
-function inverse_map(G::AbsAffineGroupScheme)
-  return inverse_map(underlying_group_scheme(G))
+@attr SpecMor function inverse_map(G::AbsAffineGroupScheme)
+  return SpecMor(G, G, pullback(inverse_map(underlying_group_scheme(G))))
 end
 
 @Markdown.doc """
@@ -59,8 +78,10 @@ end
 For a group ``G`` with neutral element ``e ∈ G`` this returns the morphism 
 ``G → G × G, g ↦ (g, e)`` where ``G × G`` is the `product_over_ground_field` of ``G``.
 """
-function first_inclusion(G::AbsAffineGroupScheme)
-  return first_inclusion(underlying_group_scheme(G))
+@attr SpecMor function first_inclusion(G::AbsAffineGroupScheme)
+  return SpecMor(G, product_over_ground_field(G),
+                 pullback(first_inclusion(underlying_group_scheme(G)))
+                )
 end
 
 @Markdown.doc """
@@ -69,8 +90,10 @@ end
 For a group ``G`` with neutral element ``e ∈ G`` this returns the morphism 
 ``G → G × G, g ↦ (e, g)`` where ``G × G`` is the `product_over_ground_field` of ``G``.
 """
-function second_inclusion(G::AbsAffineGroupScheme)
-  return second_inclusion(underlying_group_scheme(G))
+@attr SpecMor function second_inclusion(G::AbsAffineGroupScheme)
+  return SpecMor(G, product_over_ground_field(G),
+                 pullback(second_inclusion(underlying_group_scheme(G)))
+                )
 end
 
 @Markdown.doc """
@@ -79,17 +102,37 @@ end
 For a group ``G`` this returns the morphism ``G → G × G, g ↦ (g, g)`` 
 where ``G × G`` is the `product_over_ground_field` of ``G``.
 """
-function diagonal_embedding(G::AbsAffineGroupScheme)
-  return diagonal_embedding(underlying_group_scheme(G))
+@attr SpecMor function diagonal_embedding(G::AbsAffineGroupScheme)
+  return SpecMor(G, product_over_ground_field(G), 
+                 pullback(diagonal_embedding(underlying_group_scheme(G)))
+                )
 end
 
+@Markdown.doc """
+    neutral_element_coordinates(G::AbsAffineGroupScheme)
+
+For an affine group scheme ``G ⊂ 𝔸ⁿ`` this returns the 
+coordinates ``(x₁,…,xₙ) ∈ 𝕜ⁿ`` of the neutral element ``e ∈ G``
+for the given embedding.
+"""
+function neutral_element_coordinates(G::AbsAffineGroupScheme)
+  return neutral_element_coordinates(underlying_group_scheme(G))
+end
+
+### This method can be implemented to forward an existing 
+# implementation of the above interface
 function underlying_group_scheme(G::AbsAffineGroupScheme)
   error("function `underlying_group_scheme` not implemented for schemes of type $(typeof(G))")
 end
 
+### Forwarding of the scheme interface
+underlying_scheme(G::AbsAffineGroupScheme) = underlying_scheme(underlying_group_scheme(G))
+underlying_scheme_type(::Type{T}) where {T<:AbsAffineGroupScheme} = underlying_scheme_type(underlying_group_scheme_type(T))
 
-@attributes mutable struct AffineGroupScheme{BRT, BRET} <: AbsAffineGroupScheme{BRT, BRET}
-  X::Spec
+
+
+@attributes mutable struct AffineGroupScheme{BRT, BRET, SpecType} <: AbsAffineGroupScheme{BRT, BRET}
+  X::SpecType
   product_over_ground_field::AbsSpec
   diagonal_embedding::SpecMor
   first_projection::SpecMor
@@ -134,7 +177,24 @@ end
       # TODO: Add some further checks about the neutral element.
     end
 
-    return new{base_ring_type(X), elem_type(base_ring_type(X))}(X, XxX, diag, p1, p2, i1, i2, mult_map, inv, neutral_element)
+    G = new{
+            base_ring_type(X), 
+            elem_type(base_ring_type(X)), 
+            typeof(X)
+           }(
+             X, XxX
+             )
+    # We need to manually promote the maps so that they have access 
+    # to G itself as (co-)domains.
+    G.diagonal_embedding = SpecMor(G, XxX, pullback(diag))
+    G.first_projection = SpecMor(XxX, G, pullback(p1))
+    G.second_projection = SpecMor(XxX, G, pullback(p2))
+    G.first_inclusion = SpecMor(G, XxX, pullback(i1))
+    G.second_inclusion = SpecMor(G, XxX, pullback(i2))
+    G.multiplication_map = SpecMor(XxX, G, pullback(mult_map))
+    G.inverse_map = SpecMor(G, G, pullback(inv))
+    G.neutral_element = neutral_element
+    return G
   end
 end
 
@@ -147,4 +207,53 @@ first_inclusion(G::AffineGroupScheme) = G.first_inclusion
 second_inclusion(G::AffineGroupScheme) = G.second_inclusion
 multiplication_map(G::AffineGroupScheme) = G.multiplication_map
 inverse_map(G::AffineGroupScheme) = G.inverse_map
-neutral_element(G::AffineGroupScheme) = G.neutral_element
+neutral_element_coordinates(G::AffineGroupScheme) = G.neutral_element
+
+### type getters
+function underlying_scheme_type(
+    ::Type{AffineGroupSchemeType}
+  ) where {SpecType, AffineGroupSchemeType<:AffineGroupScheme{<:Any, <:Any, SpecType}}
+  return SpecType
+end
+
+########################################################################
+# 
+# The following is an example of a concrete implementation of an 
+# affine group scheme of type `<:AbsAffineGroupScheme`, using the 
+# concrete minimal type `AffineGroupScheme` in the background. 
+#
+########################################################################
+
+@attributes mutable struct _kk_star{BRT, BRET, GroupSchemeType} <: AbsAffineGroupScheme{BRT, BRET}
+  X::GroupSchemeType
+
+  function _kk_star(kk::AbstractAlgebra.Field; var_name::String="x")
+    P, (x,) = PolynomialRing(kk, [var_name])
+    X = hypersurface_complement(Spec(P), x)
+    XxX, p1, p2 = product(X, X)
+    y = pullback(p1).(gens(OO(X)))[1]
+    z = pullback(p2).(gens(OO(X)))[1]
+    mult_map = SpecMor(XxX, X, hom(OO(X), OO(XxX), [y*z]))
+    e = [one(kk)]
+    inv_map = SpecMor(X, X, hom(OO(X), OO(X), [1//x]))
+    i1 = SpecMor(X, XxX, hom(OO(XxX), OO(X), [x, one(x)]))
+    i2 = SpecMor(X, XxX, hom(OO(XxX), OO(X), [one(x), x]))
+    diag = SpecMor(X, XxX, hom(OO(XxX), OO(X), [x, x]))
+
+    G = AffineGroupScheme(X, XxX, diag, p1, p2, i1, i2, mult_map, inv_map, e)
+
+    return new{typeof(kk), elem_type(kk), typeof(G)}(G)
+  end
+end
+
+### forwarding of the essential getters is achieved with this one line
+underlying_group_scheme(G::_kk_star) = G.X
+
+### necessary forwarding of the type getters
+underlying_group_scheme_type(::Type{T}) where {GST, T<:_kk_star{<:Any, <:Any, GST}} = GST
+
+### additional methods for this particular type can be added at will
+function variable_name(G::_kk_star)
+  return String(symbols(base_ring(OO(G)))[1])
+end
+    
