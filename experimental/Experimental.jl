@@ -14,5 +14,6 @@ include("Schemes/Glueing.jl")
 include("Schemes/SpecialTypes.jl")
 include("Schemes/ProjectiveSchemes.jl")
 include("Schemes/CoveredScheme.jl")
+include("Schemes/SpaceGerms.jl")
 
 include("Matrix/matrix.jl")

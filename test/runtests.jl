@@ -45,6 +45,7 @@ include("LibSingWrapper.jl")
 include("Schemes/Glueing.jl")
 include("Schemes/ProjectiveSchemes.jl")
 include("Schemes/CoveredScheme.jl")
+include("Schemes/SpaceGerms.jl")
 
 include("TropicalGeometry/runtests.jl")
 include("Serialization/runtests.jl")
