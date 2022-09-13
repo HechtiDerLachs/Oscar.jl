@@ -11,12 +11,12 @@
   set_name!(U, "U")
   UX = intersect(X, U)
   set_name!(UX, "U ∩ X")
-  @test X == closure(UX, A3)
+  @test is_canonically_isomorphic(X, closure(UX, A3))
   @test is_open_embedding(UX, X)
   @test is_closed_embedding(X, A3)
   UZ = subscheme(UX, y^2)
   Z = subscheme(X, y^2)
-  @test closure(UZ, X) == Z
+  @test is_canonically_isomorphic(closure(UZ, X), Z)
   
   S, (u,v) = QQ["u", "v"]
   A2 = Spec(S)
@@ -30,7 +30,8 @@
   Gamma_psi, p, q = graph(psi)
   @test iszero(pullback(p)(OO(phi_L)(y//z)) - pullback(q)(OO(L)(v)))
   
-  mirr = SpecMor(X, X, [y, x, z])
+  Xstd = Oscar.standard_spec(X)
+  mirr = SpecMor(Xstd, Xstd, [y, x, z])
   @test is_isomorphism(mirr)
-  @test pullback(compose(inverse(mirr), mirr))(OO(X)(x^2-34*z)) == OO(X)(x^2-34*z+ f^2)
+  @test pullback(compose(inverse(mirr), mirr))(OO(Xstd)(x^2-34*z)) == OO(Xstd)(x^2-34*z+ f^2)
 end
