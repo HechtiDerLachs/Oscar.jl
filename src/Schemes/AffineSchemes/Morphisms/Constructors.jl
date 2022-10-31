@@ -173,8 +173,8 @@ true
 """
 function restrict(f::SpecMor, U::AbsSpec, V::AbsSpec; check::Bool=true)
   if check
-    issubset(U, domain(f)) || error("second argument does not lay in the domain of the map")
-    issubset(V, codomain(f)) || error("third argument does not lay in the codomain of the map")
+    issubset(U, domain(f)) || error("second argument does not lie in the domain of the map")
+    issubset(V, codomain(f)) || error("third argument does not lie in the codomain of the map")
     issubset(U, preimage(f, V)) || error("the image of the restriction is not contained in the restricted codomain")
   end
   return SpecMor(U, V, OO(U).(pullback(f).(gens(domain(pullback(f))))), check=check)
