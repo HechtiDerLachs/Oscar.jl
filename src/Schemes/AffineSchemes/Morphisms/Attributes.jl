@@ -36,7 +36,7 @@ julia> (x1,x2,x3) = gens(R)
 julia> X = subscheme(Y, x1)
 Spec of Quotient of Multivariate Polynomial Ring in x1, x2, x3 over Rational Field by ideal(x1)
 
-julia> f = inclusion_map(X, Y);
+julia> f = inclusion_morphism(X, Y);
 
 julia> domain(f)
 Spec of Quotient of Multivariate Polynomial Ring in x1, x2, x3 over Rational Field by ideal(x1)
@@ -67,7 +67,7 @@ julia> (x1,x2,x3) = gens(R)
 julia> X = subscheme(Y, x1)
 Spec of Quotient of Multivariate Polynomial Ring in x1, x2, x3 over Rational Field by ideal(x1)
 
-julia> f = inclusion_map(X, Y);
+julia> f = inclusion_morphism(X, Y);
 
 julia> codomain(f)
 Spec of Multivariate Polynomial Ring in x1, x2, x3 over Rational Field
@@ -99,7 +99,7 @@ julia> (x1,x2,x3) = gens(R)
 julia> X = subscheme(Y, x1)
 Spec of Quotient of Multivariate Polynomial Ring in x1, x2, x3 over Rational Field by ideal(x1)
 
-julia> pullback(inclusion_map(X, Y))
+julia> pullback(inclusion_morphism(X, Y))
 Map with following data
 Domain:
 =======
@@ -203,7 +203,7 @@ julia> (x1,x2,x3) = gens(R)
 julia> X = subscheme(Y, x1)
 Spec of Quotient of Multivariate Polynomial Ring in x1, x2, x3 over Rational Field by ideal(x1)
 
-julia> f = inclusion_map(X, Y);
+julia> f = inclusion_morphism(X, Y);
 
 julia> graph(f);
 ```

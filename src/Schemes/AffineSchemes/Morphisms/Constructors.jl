@@ -1,4 +1,4 @@
-export SpecMor, identity_map, inclusion_map, inclusion_morphism, restrict, compose
+export SpecMor, identity_map, inclusion_morphism, restrict, compose
 
 
 
@@ -80,7 +80,7 @@ identity_map(X::AbsSpec{<:Any, <:MPolyQuo}) = SpecMor(X, X, hom(OO(X), OO(X), ge
 
 
 @Markdown.doc """
-    inclusion_map(X::AbsSpec, Y::AbsSpec)
+    inclusion_morphism(X::AbsSpec, Y::AbsSpec; check::Bool=true)
 
 This method constructs the inclusion map from ``X`` to ``Y``.
 For convenience, also the method `inclusion_morphism` is supported.
@@ -102,10 +102,9 @@ julia> (x1,x2,x3) = gens(R)
 julia> Y = subscheme(X, x1)
 Spec of Quotient of Multivariate Polynomial Ring in x1, x2, x3 over Rational Field by ideal(x1)
 
-julia> inclusion_map(Y, X);
+julia> inclusion_morphism(Y, X);
 ```
 """
-inclusion_map(X::AbsSpec, Y::AbsSpec) = SpecMor(X, Y, gens(ambient_ring(Y)))  # TODO: Remove
 inclusion_morphism(X::AbsSpec, Y::AbsSpec; check::Bool=true) = SpecMor(X, Y, gens(ambient_ring(Y)), check=check)
 
 
@@ -131,7 +130,7 @@ julia> (x1,x2,x3) = gens(R)
 julia> Y = subscheme(X, x1)
 Spec of Quotient of Multivariate Polynomial Ring in x1, x2, x3 over Rational Field by ideal(x1)
 
-julia> m1 = inclusion_map(Y, X);
+julia> m1 = inclusion_morphism(Y, X);
 
 julia> m2 = identity_map(X);
 
