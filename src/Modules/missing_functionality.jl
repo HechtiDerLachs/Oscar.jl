@@ -22,6 +22,18 @@ function coordinates(f::MPolyRingElem, I::MPolyIdeal)
   iszero(f) && return zero_matrix(base_ring(I), 1, ngens(I))
   R = parent(f)
   R == base_ring(I) || error("polynomial does not belong to the base ring of the ideal")
+  c = coordinates(f, I.gens::IdealGens)::SRow
+  A = zero_matrix(R, 1, ngens(I))
+  for i in 1:ngens(I)
+    A[1, i] = R(c[i])
+  end
+  return A
+
+  # Deprecated code below
+
+  iszero(f) && return zero_matrix(base_ring(I), 1, ngens(I))
+  R = parent(f)
+  R == base_ring(I) || error("polynomial does not belong to the base ring of the ideal")
   f in I || error("polynomial does not belong to the ideal")
   singular_assure(I)
   Rsing = I.gens.Sx
@@ -36,6 +48,37 @@ function coordinates(f::MPolyRingElem, I::MPolyIdeal)
   end
   return A
 end
+
+function coordinates(f::MPolyRingElem, G::IdealGens; task::Symbol=:auto)
+  R = parent(f)
+  singular_assure(G)
+  # TODO: Once we get access to the ordering of G, we should do the 
+  # following check:
+  #is_global(ordering(G)) || error("ordering must be global")
+  return lift(f, G)
+end
+
+function coordinates_via_transform(f::MPolyRingElem, G::IdealGens)
+end
+
+function lift(f::MPolyRingElem, G::IdealGens)
+  R = parent(f)
+  singular_assure(G)
+  Rsing = G.Sx
+  fsing = Singular.Ideal(Rsing, [Rsing(f)])
+  a_s, u_s = Singular.lift(G.S, fsing)
+  # TODO: Why is the conversion into a matrix necessary to get the entries???
+  iszero(Matrix(u_s)[1, 1]) || error("unit must be equal to zero")
+  return sparse_row(R, a_s[1], 1:length(G))
+end
+
+function lift_std(G::IdealGens)
+  return lift_std(G, default_ordering(base_ring(G)))
+end
+
+function lift_std(G::IdealGens, o::MonomialOrdering)
+end
+
 
 ### This is a dirty hack to bring the `coordinates` command to 
 # MPolyQuoRing ideals. Should be replaced by something better!
