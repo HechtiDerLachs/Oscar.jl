@@ -98,7 +98,7 @@ end
 @doc raw"""
     rational_point_coordinates(I::MPolyIdeal)
 
-Return the $k$-coordinates of the point corresponding to a maximal ideal
+Returns the $k$-coordinates of the point corresponding to a maximal ideal 
 $I \in k[x_1,\dots,x_n]$, which describes a $k$-point. If $I$ is not maximal
 or does not describe a point with coordinates in the field $k$, an error 
 exception results.
@@ -106,7 +106,7 @@ exception results.
 # Examples
 ```jldoctest
 julia> R, (x, y) = QQ["x","y"]
-(Multivariate polynomial ring in 2 variables over QQ, QQMPolyRingElem[x, y])
+(Multivariate Polynomial Ring in x, y over Rational Field, QQMPolyRingElem[x, y])
 
 julia> I = ideal(R, [x-1,y-3])
 ideal(x - 1, y - 3)
@@ -124,9 +124,10 @@ function rational_point_coordinates(I::MPolyIdeal)
   G=groebner_basis(I)
   LG = leading_ideal(I;ordering=o)
   dim(LG)==0 || error("Ideal does not describe finite set of points")
-  vd,vbasis = _vdim_hack(LG)
+  vd = vdim(quo(base_ring(LG),LG)[1])
   vd ==1 || error("Ideal does not describe a single K-point")
-  return [AbstractAlgebra.leading_coefficient(normal_form(v,I)) for v in gens(R)] # TODO does the ordering matter?
+  nf_vec = [normal_form(v,I) for v in gens(R)]
+  return [ a == zero(parent(a)) ? zero(coefficient_ring(a)) : leading_coefficient(a) for a in nf_vec] # TODO does the ordering matter?
 end
 
 ### _vdim_hack only to be used until vdim of 0-dimensional ideals is implemented properly
@@ -142,7 +143,7 @@ function _vdim_hack(I::MPolyIdeal)
   M = ideal(R,gens(R))
   result=[R(1)]
   J = ideal(R,normal_form(gens(M),I))
-  while dim(J) != ngens(R)
+  while dim(J) != length(gens(R))
     Jtemp = leer
     JN=gens(J)
     for i in 1:length(JN)
