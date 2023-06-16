@@ -82,8 +82,6 @@ function _kbase(I::SubModuleOfFreeModule{<:MPolyRingElem{<:FieldElem}};
     ordering::ModuleOrdering=default_ordering(ambient_free_module(I))
   )
   lead_I = leading_module(I, ordering)
-  @show ordering
-  @show lead_I
   F = ambient_free_module(I)
   R = base_ring(F)
   # Iterate through all components until we have everything
