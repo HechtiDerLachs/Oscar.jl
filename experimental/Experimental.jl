@@ -9,7 +9,8 @@ const oldexppkgs = [
   "Matrix",
   "ModStd",
   "Rings",
-  "Schemes"
+  "Schemes",
+  "CIMPA_patches",
 ]
 # DEVELOPER OPTION:
 # The following lines ensure that ToricSchemes is loaded before FTheoryTools.
