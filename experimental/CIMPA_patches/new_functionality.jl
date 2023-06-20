@@ -128,8 +128,8 @@ end
 function milnor_number(f::MPolyLocRingElem{<:Any, <:Any, <:Any, <:Any, <:MPolyComplementOfKPointIdeal})
   R = parent(f)
   J = ideal(R, minors(jacobi_matrix(f), 1))
-  J_shift = Oscar.shifted_ideal(J)
-  return singular_vdim_local(J_shift)
+  Q, _ = quo(R, J)
+  return vector_space_dimension(Q)
 end
 
 # another wrapper for elimpart

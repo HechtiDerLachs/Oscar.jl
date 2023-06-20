@@ -60,7 +60,7 @@ function vector_space_dimension(A::MPolyQuoRing)
   I = A.I
   G = groebner_assure(I)
   singular_assure(G)
-  return Singular.vector_space_dimension(G.S)
+  return Singular.vdim(G.S)
 end
 
 ##############################################################################
