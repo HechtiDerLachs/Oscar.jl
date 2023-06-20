@@ -151,8 +151,9 @@ function vector_space(
     while !iszero(b)
       m = leading_monomial(b, ordering=ordering)
       c = leading_coefficient(b, ordering=ordering)
-      error("normal form is buggy for local orderings at the moment; see #2155")
       t = normal_form(c*m, gb_I)
+      @show c*m
+      @show typeof(t)
       if m in leading_module(I, ordering) 
         b = b - c*m + t
       else
@@ -179,10 +180,12 @@ function vector_space(
   kk === K || error("change of fields not implemented")
   shift, back_shift = base_ring_shifts(L)
   Mb = pre_saturated_module(M)
+  D = pre_saturation_data_gens(M) # a matrix with D⋅gens(M) ≅ gens(M♭)
+  phi = hom(Mb, M, inverse(D), L)
   Mb, m_shift, m_backshift = shifted_module(M)
   Fb = ambient_free_module(Mb)
   V, iso = vector_space(kk, Mb, ordering=lex(gens(Fb))*negdegrevlex(gens(R)))
-  error("implementation is still work in progress")
+  return V, MapFromFunc(x->phi(m_backshift(iso(x))), V, M)
   return V, compose(iso, m_backshift)
 end
 
