@@ -111,12 +111,16 @@ function realize_on_patch(Phi::RationalMap, U::AbsSpec)
   FX = FunctionField(X)
   A = [FX(a) for a in coordinate_images(Phi)]
   a = [b[U] for b in A]
+  @show a
+  @show U
   list_for_V = _extend(U, a)
+  @show list_for_V
   Psi = [SpecMor(W, ambient_space(V), b, check=false) for (W, b) in list_for_V]
   # Up to now we have maps to the ambient space of V. 
   # But V might be a hypersurface complement in there and we 
   # might need to restrict our domain of definition accordingly. 
   Psi_res = [_restrict_properly(psi, V) for psi in Psi]
+  @show Psi_res
   @assert all(phi->codomain(phi) === V, Psi_res)
   append!(complement_equations, [OO(U)(lifted_numerator(complement_equation(domain(psi)))) for psi in Psi_res])
   while !isone(ideal(OO(U), complement_equations))
@@ -172,6 +176,7 @@ underlying_morphism(Phi::RationalMap) = realize(Phi)
 function _extend(U::AbsSpec, a::Vector{<:FieldElem})
   R = ambient_coordinate_ring(U)
   if iszero(length(a))
+    @show "trivial return"
     return [(U, elem_type(U)[])]
   end
   F = parent(first(a))
@@ -182,9 +187,14 @@ function _extend(U::AbsSpec, a::Vector{<:FieldElem})
   # for all the a's.
   I_undef = ideal(OO(U), one(OO(U)))
   for f in a
+    @show gens(I_undef)
     J = quotient(ideal(OO(U), denominator(f)), ideal(OO(U), numerator(f)))
     I_undef = intersect(I_undef, J)
   end
+  @show gens(I_undef)
+  @show iszero(one(OO(U)))
+  @show iszero(I_undef)
+  @show small_generating_set(I_undef)
   #I_undef = ideal(OO(U), small_generating_set(I_undef))
 
   result = Vector{Tuple{AbsSpec, Vector{RingElem}}}()
@@ -231,8 +241,8 @@ function _restrict_properly(
   h = denominators(inverted_set(OO(V)))
   pbh = pullback(f).(h)
   U = domain(f)
-  W = ambient_scheme(f)
-  UU = PrincipalOpenSubset(W, push!(pbh, complement_equation(U)))
+  W = ambient_scheme(U)
+  UU = PrincipalOpenSubset(W, push!(OO(W).(lifted_numerator.(pbh)), complement_equation(U)))
   return restrict(f, UU, V, check=false)
 end
 
@@ -245,8 +255,8 @@ function _restrict_properly(
   h = denominators(inverted_set(OO(V)))
   pbh = pullback(f).(h)
   U = domain(f)
-  W = ambient_scheme(f)
-  UU = PrincipalOpenSubset(W, push!(pbh, complement_equation(U)))
+  W = ambient_scheme(U)
+  UU = PrincipalOpenSubset(W, push!(OO(W).(lifted_numerator.(pbh)), complement_equation(U)))
   return restrict(f, UU, V, check=false)
 end
 
