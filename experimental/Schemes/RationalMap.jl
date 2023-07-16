@@ -111,21 +111,24 @@ function realize_on_patch(Phi::RationalMap, U::AbsSpec)
   FX = FunctionField(X)
   A = [FX(a) for a in coordinate_images(Phi)]
   a = [b[U] for b in A]
-  @show a
-  @show U
+  @show length.(terms.(numerator.(a)))
+  @show length.(terms.(denominator.(a)))
+  #a = [lift(simplify(OO(U)(numerator(b))))//lift(simplify(OO(U)(denominator(b)))) for b in a]
+  @show length.(terms.(numerator.(a)))
+  @show length.(terms.(denominator.(a)))
   list_for_V = _extend(U, a)
-  @show list_for_V
+  @show "first extension done"
   Psi = [SpecMor(W, ambient_space(V), b, check=false) for (W, b) in list_for_V]
   # Up to now we have maps to the ambient space of V. 
   # But V might be a hypersurface complement in there and we 
   # might need to restrict our domain of definition accordingly. 
   Psi_res = [_restrict_properly(psi, V) for psi in Psi]
-  @show Psi_res
   @assert all(phi->codomain(phi) === V, Psi_res)
   append!(complement_equations, [OO(U)(lifted_numerator(complement_equation(domain(psi)))) for psi in Psi_res])
   while !isone(ideal(OO(U), complement_equations))
     # Find another chart in the codomain which is hopefully easily accessible
     V_next, V_orig = _find_good_neighboring_patch(codomain_covering(Phi), covered_codomain_patches)
+    @show "neighbor found"
     # Get the glueing morphisms for the glueing to some already covered chart
     f, g = glueing_morphisms(glueings(codomain_covering(Phi))[(V_next, V_orig)])
     # Find one morphism which was already realized with this codomomain
@@ -139,6 +142,12 @@ function realize_on_patch(Phi::RationalMap, U::AbsSpec)
     pb_y0 = pullback(phi).(y0)
     rat_lift_y0 = [lifted_numerator(a)//lifted_denominator(a) for a in pb_y0]
     total_rat_lift = [evaluate(a, rat_lift_y0) for a in rat_lift_y1]
+    @show "finding new extension"
+    @show length.(terms.(numerator.(total_rat_lift)))
+    @show length.(terms.(denominator.(total_rat_lift)))
+    #total_rat_lift = [lift(simplify(OO(U)(numerator(b))))//lift(simplify(OO(U)(denominator(b)))) for b in total_rat_lift]
+    @show length.(terms.(numerator.(total_rat_lift)))
+    @show length.(terms.(denominator.(total_rat_lift)))
     list_for_V_next = _extend(U, total_rat_lift)
     Psi = [SpecMor(W, ambient_space(V_next), b, check=false) for (W, b) in list_for_V_next]
     Psi = [_restrict_properly(psi, V_next) for psi in Psi]
@@ -146,6 +155,7 @@ function realize_on_patch(Phi::RationalMap, U::AbsSpec)
     append!(complement_equations, [OO(U)(lifted_numerator(complement_equation(domain(psi)))) for psi in Psi])
     push!(covered_codomain_patches, V_next)
   end
+  realizations(Phi)[U] = Psi_res
   return Psi_res
 end
 
@@ -186,24 +196,57 @@ function _extend(U::AbsSpec, a::Vector{<:FieldElem})
   # Determine an ideal for the complement of the maximal domain of definition 
   # for all the a's.
   I_undef = ideal(OO(U), one(OO(U)))
+  for (k, f) in enumerate(a)
+    @show f
+    isone(denominator(f)) && continue
+    new_den = one(denominator(f))
+    @show new_den
+    @show typeof(new_den)
+    num = OO(U)(numerator(f))
+    @show length(terms(lift(num)))
+    simplify(num)
+    @show length(terms(lift(num)))
+    for (b, e) in factor(denominator(f))
+      @show b, e
+      aa = simplify(OO(U)(b))
+      @show length(terms(b))
+      @show length(terms(lift(aa)))
+      success, q = divides(num, aa)
+      @show success
+      while success && e > 0
+        num = q
+        e = e - 1
+        success, q = divides(num, aa)
+        @show success, q
+      end
+      @show q
+      new_den = new_den*b^e
+    end
+    @assert numerator(a[k])*new_den == denominator(a[k])*num
+    a[k] = fraction(num)//fraction(new_den)
+  end
+  @show ngens(OO(U))
+  @show ngens(OO(simplify(U)))
   for f in a
-    @show gens(I_undef)
+    @show "computing ideal quotient for $f"
     J = quotient(ideal(OO(U), denominator(f)), ideal(OO(U), numerator(f)))
+    @show "intersecting..."
     I_undef = intersect(I_undef, J)
   end
-  @show gens(I_undef)
-  @show iszero(one(OO(U)))
-  @show iszero(I_undef)
-  @show small_generating_set(I_undef)
+  @show length(small_generating_set(I_undef))
+  @show [length(terms(lifted_numerator(a))) for a in small_generating_set(I_undef)]
   #I_undef = ideal(OO(U), small_generating_set(I_undef))
 
   result = Vector{Tuple{AbsSpec, Vector{RingElem}}}()
 
   for g in small_generating_set(I_undef)
+    @show g
     Ug = PrincipalOpenSubset(U, g)
-    b = [divides(OO(Ug)(numerator(f)), OO(Ug)(denominator(f)))[2] for f in a]
+    b = [OO(Ug)(numerator(f), denominator(f)) for f in a]
+    #b = [divides(OO(Ug)(numerator(f)), OO(Ug)(denominator(f)))[2] for f in a]
     push!(result, (Ug, b))
   end
+  @show "done"
 
   return result
 end
@@ -256,6 +299,7 @@ function _restrict_properly(
   pbh = pullback(f).(h)
   U = domain(f)
   W = ambient_scheme(U)
+  @show length(terms(lifted_numerator(complement_equation(U))))
   UU = PrincipalOpenSubset(W, push!(OO(W).(lifted_numerator.(pbh)), complement_equation(U)))
   return restrict(f, UU, V, check=false)
 end
@@ -269,9 +313,17 @@ function pushforward(Phi::RationalMap, D::AbsAlgebraicCycle)
   pushed_comps = IdDict{IdealSheaf, elem_type(coefficient_ring(D))}()
   for I in components(D)
     # Find some chart in which I is non-trivial
-    k = findfirst(x->!isone(I(x)), affine_charts(X))
-    k === nothing && error("no affine chart found on which the component was non-trivial")
-    U = affine_charts(X)[k]
+    real_patches = collect(keys(realizations(Phi)))
+    k = findfirst(x->!isone(I(x)), real_patches)
+    U = first(affine_charts(X)) # Assign the variable
+    if k === nothing
+      k = findfirst(x->!isone(I(x)), affine_charts(X))
+      k === nothing && error("no affine chart found on which the component was non-trivial")
+      U = affine_charts(X)[k]
+    else
+      @show "found patch which is already realized"
+      U = real_patches[k]
+    end
     loc_phi = realize_on_patch(Phi, U)
     k = findfirst(x->!isone(I(domain(x))), loc_phi)
     k === nothing && error("no patch found on which the component was non-trivial")
