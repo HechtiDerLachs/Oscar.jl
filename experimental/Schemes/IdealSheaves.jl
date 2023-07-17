@@ -138,9 +138,15 @@ charts can not be inferred.
 """
 function IdealSheaf(X::AbsCoveredScheme, U::AbsSpec, g::Vector{RET}) where {RET<:RingElem}
   C = default_covering(X)
-  U in patches(C) || error("the affine open patch does not belong to the covering")
   for f in g
     parent(f) === OO(U) || error("the generators do not belong to the correct ring")
+  end
+  if !(U in patches(C))
+    inc_U_flat = _flatten_open_subscheme(U, default_covering(X))
+    U_flat = codomain(inc_U_flat)::PrincipalOpenSubset
+    V = ambient_scheme(U_flat)
+    J = saturated_ideal(pullback(inverse(inc_U_flat))(ideal(OO(U), g)))
+    return IdealSheaf(X, V, OO(V).(gens(J)))
   end
   D = IdDict{AbsSpec, Ideal}()
   D[U] = ideal(OO(U), g)
