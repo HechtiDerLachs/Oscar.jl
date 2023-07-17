@@ -55,6 +55,7 @@ with coordinates
 
   patch_representatives::IdDict{<:AbsSpec, <:Tuple{<:AbsSpec, <:Vector{<:FieldElem}}}
   realizations::IdDict{<:AbsSpec, <:Vector{<:AbsSpecMor}}
+  maximal_extensions::IdDict{<:Tuple{<:AbsSpec, <:AbsSpec}, <:Vector{<:AbsSpecMor}}
   full_realization::CoveredSchemeMorphism
 
   function RationalMap(
@@ -78,8 +79,9 @@ with coordinates
     patch_repr = IdDict{AbsSpec, Tuple{AbsSpec, Vector{FieldElem}}}()
     patch_repr[U] = (V, a)
     realizations = IdDict{AbsSpec, Vector{AbsSpecMor}}()
+    maximal_extensions = IdDict{Tuple{AbsSpec, AbsSpec}, Vector{AbsSpecMor}}()
     return new{typeof(X), typeof(Y)}(X, Y, domain_covering, codomain_covering, 
-                                     U, V, a, patch_repr, realizations)
+                                     U, V, a, patch_repr, realizations, maximal_extensions)
   end
 end
 
@@ -93,6 +95,7 @@ coordinate_images(Phi::RationalMap) = Phi.coord_imgs
 
 patch_representatives(Phi::RationalMap) = Phi.patch_representatives
 realizations(Phi::RationalMap) = Phi.realizations
+maximal_extensions(Phi::RationalMap) = Phi.maximal_extensions
 
 function realize_on_patch(Phi::RationalMap, U::AbsSpec)
   if haskey(realizations(Phi), U)
@@ -159,6 +162,75 @@ function realize_on_patch(Phi::RationalMap, U::AbsSpec)
   return Psi_res
 end
 
+function realize_on_open_subset(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
+  X = domain(Phi)
+  Y = codomain(Phi)
+  # Check that the input is admissible
+  if !any(x->x===U, patches(X)) 
+    UU = _find_chart(U, default_covering(X))
+  end
+  if !any(x->x===V, patches(Y)) 
+    VV = _find_chart(V, default_covering(Y))
+  end
+  @show gens(OO(V))
+  y = function_field(Y).(gens(OO(V)))
+  @show y
+  dom_rep = domain_chart(Phi)
+  @show U === dom_rep
+  cod_rep = codomain_chart(Phi)
+  @show V === cod_rep
+  y_cod = [a[cod_rep] for a in y]::Vector{<:FieldElem}
+  @show y_cod
+  x_dom = [evaluate(a, coordinate_images(Phi)) for a in y_cod]::Vector{<:FieldElem}
+  @show x_dom
+  x = function_field(X).(x_dom)
+  @show x
+  img_gens_frac = [a[U] for a in x]
+  dens = [denominator(a) for a in img_gens_frac]
+  U_sub = PrincipalOpenSubset(U, OO(U).(dens))
+  img_gens = [OO(U_sub)(numerator(a), denominator(a)) for a in img_gens_frac]
+  prelim = SpecMor(U_sub, ambient_space(V), img_gens, check=false) # TODO: Set to false
+  return _restrict_properly(prelim, V)
+end
+
+function realize_maximally_on_open_subset(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
+  if haskey(maximal_extensions(Phi), (U, V))
+    return maximal_extensions(Phi)[(U, V)]
+  end
+  X = domain(Phi)
+  Y = codomain(Phi)
+  # Check that the input is admissible
+  if !any(x->x===U, patches(X)) 
+    UU = _find_chart(U, default_covering(X))
+  end
+  if !any(x->x===V, patches(Y)) 
+    VV = _find_chart(V, default_covering(Y))
+  end
+  @show gens(OO(V))
+  y = function_field(Y).(gens(OO(V)))
+  @show y
+  dom_rep = domain_chart(Phi)
+  @show U === dom_rep
+  cod_rep = codomain_chart(Phi)
+  @show V === cod_rep
+  y_cod = [a[cod_rep] for a in y]::Vector{<:FieldElem}
+  @show y_cod
+  x_dom = [evaluate(a, coordinate_images(Phi)) for a in y_cod]::Vector{<:FieldElem}
+  @show x_dom
+  x = function_field(X).(x_dom)
+  @show x
+  img_gens_frac = [a[U] for a in x]
+  extensions = _extend(U, img_gens_frac)
+  result = AbsSpecMor[]
+  for (U, g) in extensions
+    prelim = SpecMor(U, ambient_space(V), g, check=false)
+    push!(result, _restrict_properly(prelim, V))
+  end
+  maximal_extensions(Phi)[(U, V)] = result
+  return result
+end
+
+
 function realize(Phi::RationalMap)
   if !isdefined(Phi, :full_realization)
     realizations = AbsSpecMor[]
@@ -196,35 +268,35 @@ function _extend(U::AbsSpec, a::Vector{<:FieldElem})
   # Determine an ideal for the complement of the maximal domain of definition 
   # for all the a's.
   I_undef = ideal(OO(U), one(OO(U)))
-  for (k, f) in enumerate(a)
-    @show f
-    isone(denominator(f)) && continue
-    new_den = one(denominator(f))
-    @show new_den
-    @show typeof(new_den)
-    num = OO(U)(numerator(f))
-    @show length(terms(lift(num)))
-    simplify(num)
-    @show length(terms(lift(num)))
-    for (b, e) in factor(denominator(f))
-      @show b, e
-      aa = simplify(OO(U)(b))
-      @show length(terms(b))
-      @show length(terms(lift(aa)))
-      success, q = divides(num, aa)
-      @show success
-      while success && e > 0
-        num = q
-        e = e - 1
-        success, q = divides(num, aa)
-        @show success, q
-      end
-      @show q
-      new_den = new_den*b^e
-    end
-    @assert numerator(a[k])*new_den == denominator(a[k])*num
-    a[k] = fraction(num)//fraction(new_den)
-  end
+# for (k, f) in enumerate(a)
+#   @show f
+#   isone(denominator(f)) && continue
+#   new_den = one(denominator(f))
+#   @show new_den
+#   @show typeof(new_den)
+#   num = OO(U)(numerator(f))
+#   @show length(terms(lift(num)))
+#   simplify(num)
+#   @show length(terms(lift(num)))
+#   for (b, e) in factor(denominator(f))
+#     @show b, e
+#     aa = simplify(OO(U)(b))
+#     @show length(terms(b))
+#     @show length(terms(lift(aa)))
+#     success, q = divides(num, aa)
+#     @show success
+#     while success && e > 0
+#       num = q
+#       e = e - 1
+#       success, q = divides(num, aa)
+#       @show success, q
+#     end
+#     @show q
+#     new_den = new_den*b^e
+#   end
+#   @assert numerator(a[k])*new_den == denominator(a[k])*num
+#   a[k] = fraction(num)//fraction(new_den)
+# end
   @show ngens(OO(U))
   @show ngens(OO(simplify(U)))
   for f in a
@@ -232,6 +304,7 @@ function _extend(U::AbsSpec, a::Vector{<:FieldElem})
     J = quotient(ideal(OO(U), denominator(f)), ideal(OO(U), numerator(f)))
     @show "intersecting..."
     I_undef = intersect(I_undef, J)
+    @show I_undef
   end
   @show length(small_generating_set(I_undef))
   @show [length(terms(lifted_numerator(a))) for a in small_generating_set(I_undef)]
@@ -242,6 +315,9 @@ function _extend(U::AbsSpec, a::Vector{<:FieldElem})
   for g in small_generating_set(I_undef)
     @show g
     Ug = PrincipalOpenSubset(U, g)
+    @show gens(OO(Ug))
+    @show denominators(inverted_set(OO(Ug)))
+    @show a
     b = [OO(Ug)(numerator(f), denominator(f)) for f in a]
     #b = [divides(OO(Ug)(numerator(f)), OO(Ug)(denominator(f)))[2] for f in a]
     push!(result, (Ug, b))
@@ -354,3 +430,45 @@ end
   error("no method implemented to check for being an isomorphism")
 end
 
+function pullback(phi::RationalMap, C::AbsAlgebraicCycle)
+  is_isomorphism(phi) || error("method is currently only implemented for isomorphisms")
+  X = domain(phi)
+  Y = codomain(phi)
+  R = coefficient_ring(C)
+  comps = IdDict{IdealSheaf, elem_type(R)}()
+  for I in components(C)
+    # Find a patch in Y on which this component is visible
+    k = findfirst(x->!isone(I(x)), affine_charts(Y))
+    k === nothing && error("no patch found on which component was non-trivial")
+    V = affine_charts(Y)[k]
+    # Find a patch in X in which the pullback is visible
+    JJ = IdealSheaf(X)
+    for U in affine_charts(X)
+      psi_loc = realize_maximally_on_open_subset(phi, U, V)
+      # If we are in different components, skip
+      length(psi_loc) > 0 || continue
+      found = 0
+      J = ideal(OO(domain(first(psi_loc))), elem_type(OO(domain(first(psi_loc))))[])
+      for (k, psi) in enumerate(psi_loc)
+        J = pullback(psi)(I(V))
+        @show ngens(J), length.(terms.(lifted_numerator.(gens(J))))
+        if !isone(J)
+          @assert dim(J) == dim(I)
+          found = k
+          break
+        end
+      end
+      if found != 0
+        psi = psi_loc[found]
+        JJ = IdealSheaf(X, domain(psi), gens(J))
+        comps[JJ] = C[I]
+        break
+      end
+    end
+  end
+  return AlgebraicCycle(X, R, comps)
+end
+
+function pullback(phi::RationalMap, D::WeilDivisor)
+  return WeilDivisor(pullback(phi)(underlying_cycle(D)), check=true) # TODO: Set to false
+end
