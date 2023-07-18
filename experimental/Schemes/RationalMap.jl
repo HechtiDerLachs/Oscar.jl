@@ -55,6 +55,7 @@ with coordinates
 
   patch_representatives::IdDict{<:AbsSpec, <:Tuple{<:AbsSpec, <:Vector{<:FieldElem}}}
   realizations::IdDict{<:AbsSpec, <:Vector{<:AbsSpecMor}}
+  realization_previews::IdDict{<:Tuple{<:AbsSpec, <:AbsSpec}, <:Vector{<:FieldElem}}
   maximal_extensions::IdDict{<:Tuple{<:AbsSpec, <:AbsSpec}, <:Vector{<:AbsSpecMor}}
   full_realization::CoveredSchemeMorphism
 
@@ -79,9 +80,11 @@ with coordinates
     patch_repr = IdDict{AbsSpec, Tuple{AbsSpec, Vector{FieldElem}}}()
     patch_repr[U] = (V, a)
     realizations = IdDict{AbsSpec, Vector{AbsSpecMor}}()
+    realization_previews = IdDict{Tuple{AbsSpec, AbsSpec}, Vector{FieldElem}}()
     maximal_extensions = IdDict{Tuple{AbsSpec, AbsSpec}, Vector{AbsSpecMor}}()
     return new{typeof(X), typeof(Y)}(X, Y, domain_covering, codomain_covering, 
-                                     U, V, a, patch_repr, realizations, maximal_extensions)
+                                     U, V, a, patch_repr, realizations, 
+                                     realization_previews, maximal_extensions)
   end
 end
 
@@ -96,6 +99,7 @@ coordinate_images(Phi::RationalMap) = Phi.coord_imgs
 patch_representatives(Phi::RationalMap) = Phi.patch_representatives
 realizations(Phi::RationalMap) = Phi.realizations
 maximal_extensions(Phi::RationalMap) = Phi.maximal_extensions
+realization_previews(Phi::RationalMap) = Phi.realization_previews
 
 function realize_on_patch(Phi::RationalMap, U::AbsSpec)
   if haskey(realizations(Phi), U)
@@ -193,9 +197,9 @@ function realize_on_open_subset(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
   return _restrict_properly(prelim, V)
 end
 
-function realize_maximally_on_open_subset(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
-  if haskey(maximal_extensions(Phi), (U, V))
-    return maximal_extensions(Phi)[(U, V)]
+function realization_preview(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
+  if haskey(realization_previews(Phi), (U, V))
+    return realization_previews(Phi)[(U, V)]
   end
   X = domain(Phi)
   Y = codomain(Phi)
@@ -220,6 +224,15 @@ function realize_maximally_on_open_subset(Phi::RationalMap, U::AbsSpec, V::AbsSp
   x = function_field(X).(x_dom)
   @show x
   img_gens_frac = [a[U] for a in x]
+  realization_previews(Phi)[(U, V)] = img_gens_frac
+  return img_gens_frac
+end
+
+function realize_maximally_on_open_subset(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
+  if haskey(maximal_extensions(Phi), (U, V))
+    return maximal_extensions(Phi)[(U, V)]
+  end
+  img_gens_frac = realization_preview(Phi, U, V)
   extensions = _extend(U, img_gens_frac)
   result = AbsSpecMor[]
   for (U, g) in extensions
@@ -309,6 +322,10 @@ function _extend(U::AbsSpec, a::Vector{<:FieldElem})
   @show length(small_generating_set(I_undef))
   @show [length(terms(lifted_numerator(a))) for a in small_generating_set(I_undef)]
   #I_undef = ideal(OO(U), small_generating_set(I_undef))
+  I_undef = radical(I_undef)
+# @show I_undef
+# @show equidimensional_decomposition_radical(saturated_ideal(I_undef))
+# I_undef = last(equidimensional_decomposition_radical(I_undef))
 
   result = Vector{Tuple{AbsSpec, Vector{RingElem}}}()
 
@@ -326,6 +343,10 @@ function _extend(U::AbsSpec, a::Vector{<:FieldElem})
 
   return result
 end
+
+equidimensional_decomposition_radical(I::MPolyQuoIdeal) = [ideal(base_ring(I), gens(J)) for J in equidimensional_decomposition_radical(saturated_ideal(I))]
+equidimensional_decomposition_radical(I::MPolyLocalizedIdeal) = [ideal(base_ring(I), gens(J)) for J in equidimensional_decomposition_radical(saturated_ideal(I))]
+equidimensional_decomposition_radical(I::MPolyQuoLocalizedIdeal) = [ideal(base_ring(I), gens(J)) for J in equidimensional_decomposition_radical(saturated_ideal(I))]
 
 function _find_good_neighboring_patch(cov::Covering, covered::Vector{<:AbsSpec})
   U = [x for x in patches(cov) if !any(y->y===x, covered)]
@@ -438,18 +459,42 @@ function pullback(phi::RationalMap, C::AbsAlgebraicCycle)
   comps = IdDict{IdealSheaf, elem_type(R)}()
   for I in components(C)
     # Find a patch in Y on which this component is visible
-    k = findfirst(x->!isone(I(x)), affine_charts(Y))
-    k === nothing && error("no patch found on which component was non-trivial")
-    V = affine_charts(Y)[k]
+    all_V = [V for V in affine_charts(Y) if !isone(I(V))]
+    @show all_V
+    min_var = minimum([ngens(OO(V)) for V in all_V])
+    @show min_var
+    all_V = [V for V in all_V if ngens(OO(V)) == min_var]
+    @show all_V
+    deg_bound = minimum([maximum([total_degree(lifted_numerator(g)) for g in gens(I(V))]) for V in all_V])
+    @show deg_bound
+    all_V = [V for V in all_V if minimum([total_degree(lifted_numerator(g)) for g in gens(I(V))]) == deg_bound]
+    @show all_V
+    V = first(all_V)
+
     # Find a patch in X in which the pullback is visible
     JJ = IdealSheaf(X)
-    for U in affine_charts(X)
+    all_U = copy(affine_charts(X))
+    function complexity(U::AbsSpec)
+      a = realization_preview(phi, U, V)
+      return maximum(vcat([total_degree(numerator(f)) for f in a], [total_degree(denominator(f)) for f in a]))
+    end
+    sort!(all_U, lt=(x,y)->complexity(x)<complexity(y))
+    @show complexity.(all_U)
+    for U in all_U
       psi_loc = realize_maximally_on_open_subset(phi, U, V)
+      @show length(psi_loc)
       # If we are in different components, skip
       length(psi_loc) > 0 || continue
       found = 0
       J = ideal(OO(domain(first(psi_loc))), elem_type(OO(domain(first(psi_loc))))[])
+      cod_ideal = ideal(OO(U), elem_type(OO(U))[])
       for (k, psi) in enumerate(psi_loc)
+        @show dim(cod_ideal)
+        if dim(cod_ideal) < dim(I)
+          @show "stop search because codimension of complement is too big"
+          found = 0
+          break
+        end
         J = pullback(psi)(I(V))
         @show ngens(J), length.(terms.(lifted_numerator.(gens(J))))
         if !isone(J)
@@ -457,9 +502,11 @@ function pullback(phi::RationalMap, C::AbsAlgebraicCycle)
           found = k
           break
         end
+        cod_ideal = cod_ideal + ideal(OO(U), complement_equation(domain(psi)))
       end
       if found != 0
         psi = psi_loc[found]
+        @assert dim(J) == dim(I)
         JJ = IdealSheaf(X, domain(psi), gens(J))
         comps[JJ] = C[I]
         break
@@ -470,5 +517,5 @@ function pullback(phi::RationalMap, C::AbsAlgebraicCycle)
 end
 
 function pullback(phi::RationalMap, D::WeilDivisor)
-  return WeilDivisor(pullback(phi)(underlying_cycle(D)), check=true) # TODO: Set to false
+  return WeilDivisor(pullback(phi)(underlying_cycle(D)), check=false) 
 end
