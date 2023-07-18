@@ -1,7 +1,7 @@
 include("test/AlgebraicGeometry/Schemes/fibration_hop.jl")
 
-#kk = GF(29)
-kk = QQ
+kk = GF(29)
+#kk = QQ
 Qt, t = polynomial_ring(kk, :t)
 
 Qtf = fraction_field(Qt)
@@ -251,7 +251,7 @@ D = WeilDivisor[]
 for dd in divisors3
   push!(D, pullback(psi, dd))
 end
-
+true
 # Task psi =  pi3^-1 \circ phi \circ pi2 is an isomorphism X2 -> X3
 # pull back all divisors from algebraic_lattice(X3)[1] to X2 via psi
 # and compute their basis representation.
