@@ -486,7 +486,7 @@ end
   inherit_glueings!(cod_cov, default_covering(Y))
   XU = CoveredScheme(dom_cov)
   YV = CoveredScheme(cod_cov)
-  p_res_cov = CoveringMorphism(dom_cov, cod_cov, iso_dict)
+  p_res_cov = CoveringMorphism(dom_cov, cod_cov, iso_dict, check=false)
   p_res = CoveredSchemeMorphism(XU, YV, p_res_cov)
 
   # Assemble the inverse
@@ -495,7 +495,7 @@ end
     V = codomain(q)
     iso_inv_dict[V] = inverse(q)
   end
-  p_res_inv_cov = CoveringMorphism(cod_cov, dom_cov, iso_inv_dict)
+  p_res_inv_cov = CoveringMorphism(cod_cov, dom_cov, iso_inv_dict, check=false)
   p_res_inv = CoveredSchemeMorphism(YV, XU, p_res_inv_cov)
 
   set_attribute!(p_res, :inverse, p_res_inv)

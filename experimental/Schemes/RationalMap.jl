@@ -57,6 +57,7 @@ with coordinates
   realizations::IdDict{<:AbsSpec, <:Vector{<:AbsSpecMor}}
   realization_previews::IdDict{<:Tuple{<:AbsSpec, <:AbsSpec}, <:Vector{<:FieldElem}}
   maximal_extensions::IdDict{<:Tuple{<:AbsSpec, <:AbsSpec}, <:Vector{<:AbsSpecMor}}
+  cheap_realizations::IdDict{<:Tuple{<:AbsSpec, <:AbsSpec}, <:AbsSpecMor}
   full_realization::CoveredSchemeMorphism
 
   function RationalMap(
@@ -82,9 +83,12 @@ with coordinates
     realizations = IdDict{AbsSpec, Vector{AbsSpecMor}}()
     realization_previews = IdDict{Tuple{AbsSpec, AbsSpec}, Vector{FieldElem}}()
     maximal_extensions = IdDict{Tuple{AbsSpec, AbsSpec}, Vector{AbsSpecMor}}()
+    cheap_realizations = IdDict{Tuple{AbsSpec, AbsSpec}, AbsSpecMor}()
     return new{typeof(X), typeof(Y)}(X, Y, domain_covering, codomain_covering, 
                                      U, V, a, patch_repr, realizations, 
-                                     realization_previews, maximal_extensions)
+                                     realization_previews, maximal_extensions,
+                                     cheap_realizations
+                                    )
   end
 end
 
@@ -100,6 +104,7 @@ patch_representatives(Phi::RationalMap) = Phi.patch_representatives
 realizations(Phi::RationalMap) = Phi.realizations
 maximal_extensions(Phi::RationalMap) = Phi.maximal_extensions
 realization_previews(Phi::RationalMap) = Phi.realization_previews
+cheap_realizations(Phi::RationalMap) = Phi.cheap_realizations
 
 function realize_on_patch(Phi::RationalMap, U::AbsSpec)
   if haskey(realizations(Phi), U)
@@ -228,6 +233,52 @@ function realization_preview(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
   return img_gens_frac
 end
 
+function random_realization(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
+  if haskey(cheap_realizations(Phi), (U, V))
+    return cheap_realizations(Phi)[(U, V)]
+  end
+  img_gens_frac = realization_preview(Phi, U, V)
+  U_sub, img_gens = _random_extension(U, img_gens_frac)
+  phi = SpecMor(U_sub, ambient_space(V), img_gens, check=true) # Set to false
+  return phi
+end
+
+function cheap_realization(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
+  if haskey(cheap_realizations(Phi), (U, V))
+    return cheap_realizations(Phi)[(U, V)]
+  end
+  img_gens_frac = realization_preview(Phi, U, V)
+  # Try to cancel the fractions heuristically
+  for (k, f) in enumerate(img_gens_frac)
+    @show k
+    a = numerator(f)
+    b = denominator(f)
+    aa = OO(U)(a)
+    new_num = aa
+    new_den = one(aa)
+    fac = factor(b)
+    for (p, e) in fac
+      @show p
+      success, q = divides(aa, OO(U)(p))
+      while success && e > 0
+        @show "cancelling $p"
+        aa = q
+        e = e - 1
+        success, q = divides(aa, OO(U)(p))
+      end
+      new_den = new_den * p^e
+    end
+    @assert unit(fac)*aa*denominator(f) == new_den*numerator(f)
+    img_gens_frac[k] = unit(fac)*fraction(aa)//fraction(new_den)
+  end
+  denoms = [denominator(a) for a in img_gens_frac]
+  U_sub = PrincipalOpenSubset(U, OO(U).(denoms))
+  img_gens = [OO(U_sub)(numerator(a), denominator(a), check=true) for a in img_gens_frac] # Set to false
+  phi = SpecMor(U_sub, ambient_space(V), img_gens, check=true) # Set to false
+  cheap_realizations(Phi)[(U, V)] = phi
+  return phi
+end
+
 function realize_maximally_on_open_subset(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
   if haskey(maximal_extensions(Phi), (U, V))
     return maximal_extensions(Phi)[(U, V)]
@@ -258,15 +309,52 @@ function realize(Phi::RationalMap)
     domain_ref = Covering([domain(phi) for phi in realizations])
     inherit_glueings!(domain_ref, domain_covering(Phi))
     # TODO: Inherit the decomposition_info, too!
-    phi_cov = CoveringMorphism(domain_ref, codomain_covering(Phi), mor_dict)
+    phi_cov = CoveringMorphism(domain_ref, codomain_covering(Phi), mor_dict, check=false)
     # Make the refinement known to the domain
     push!(coverings(domain(Phi)), domain_ref)
-    Phi.full_realization = CoveredSchemeMorphism(domain(Phi), codomain(Phi), phi_cov)
+    Phi.full_realization = CoveredSchemeMorphism(domain(Phi), codomain(Phi), phi_cov, check=false)
   end
   return Phi.full_realization
 end
 
 underlying_morphism(Phi::RationalMap) = realize(Phi)
+
+function _random_extension(U::AbsSpec, a::Vector{<:FieldElem})
+  R = ambient_coordinate_ring(U)
+  if iszero(length(a))
+    @show "trivial return"
+    return [(U, elem_type(U)[])]
+  end
+  F = parent(first(a))
+  all(x->parent(x)===F, a) || error("elements must belong to the same field")
+  R === base_ring(F) || error("base_rings are incompatible")
+
+  # Determine an ideal for the complement of the maximal domain of definition 
+  # for all the a's.
+  I_undef = ideal(OO(U), one(OO(U)))
+  for f in a
+    @show "computing ideal quotient for $f"
+    J = quotient(ideal(OO(U), denominator(f)), ideal(OO(U), numerator(f)))
+    @show "intersecting..."
+    I_undef = intersect(I_undef, J)
+    @show I_undef
+  end
+  I_undef = radical(I_undef)
+# @show I_undef
+# @show equidimensional_decomposition_radical(saturated_ideal(I_undef))
+# I_undef = last(equidimensional_decomposition_radical(I_undef))
+
+  iszero(I_undef) && error("possible domain of definition is empty")
+  min_gens = small_generating_set(I_undef)
+  kk = coefficient_ring(R)
+  g = sum(rand(kk, 1:10)*f for f in min_gens; init=zero(first(min_gens)))
+  while iszero(g)
+    g = sum(rand(kk, 1:10)*f for f in min_gens; init=zero(first(min_gens)))
+  end
+  Ug = PrincipalOpenSubset(U, g)
+  b = [OO(Ug)(numerator(f), denominator(f)) for f in a]
+  return Ug, b
+end
 
 function _extend(U::AbsSpec, a::Vector{<:FieldElem})
   R = ambient_coordinate_ring(U)
@@ -470,6 +558,7 @@ function pullback(phi::RationalMap, C::AbsAlgebraicCycle)
     all_V = [V for V in all_V if minimum([total_degree(lifted_numerator(g)) for g in gens(I(V))]) == deg_bound]
     @show all_V
     V = first(all_V)
+    @show findfirst(x->x===V, affine_charts(Y))
 
     # Find a patch in X in which the pullback is visible
     JJ = IdealSheaf(X)
@@ -480,6 +569,58 @@ function pullback(phi::RationalMap, C::AbsAlgebraicCycle)
     end
     sort!(all_U, lt=(x,y)->complexity(x)<complexity(y))
     @show complexity.(all_U)
+
+    # First try to get hold of the component via cheap realizations 
+    success = false
+    for U in all_U
+      @show findfirst(x->x===U, affine_charts(X))
+      psi = cheap_realization(phi, U, V)
+      @show psi
+      U_sub = domain(psi)
+      @show complement_equation(U_sub)
+      J = pullback(psi)(saturated_ideal(I(V)))
+      @show U
+      @show isone(J)
+      @show gens(J)
+      if !isone(J)
+        JJ = IdealSheaf(X, domain(psi), gens(J))
+        @show gens(JJ(domain(psi)))
+        @show dim(JJ)
+        comps[JJ] = C[I]
+        success = true
+        break
+      end
+    end
+
+    success && @show "succeeded in doing it the cheap way."
+    @show gens(OO(V))
+    @show gens(I(V))
+    success && break
+
+    @show "trying random realizations."
+
+    success = false
+    for U in all_U
+      psi = random_realization(phi, U, V)
+      U_sub = domain(psi)
+      @show complement_equation(U_sub)
+      @show saturated_ideal(I(V))
+      @show dim(saturated_ideal(I(V)))
+
+      J = pullback(psi)(saturated_ideal(I(V)))
+      @show U
+      @show isone(J)
+      if !isone(J)
+        JJ = IdealSheaf(X, domain(psi), gens(J))
+        comps[JJ] = C[I]
+        success = true
+        break
+      end
+    end
+
+    !success && error()
+
+    # If that fails, try the hard way
     for U in all_U
       psi_loc = realize_maximally_on_open_subset(phi, U, V)
       @show length(psi_loc)
