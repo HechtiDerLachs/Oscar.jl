@@ -141,7 +141,7 @@ function IdealSheaf(X::AbsCoveredScheme, U::AbsSpec, g::Vector{RET}) where {RET<
   for f in g
     parent(f) === OO(U) || error("the generators do not belong to the correct ring")
   end
-  if !(U in patches(C))
+  if !any(x->x===U, patches(C))
     inc_U_flat = _flatten_open_subscheme(U, default_covering(X))
     U_flat = codomain(inc_U_flat)::PrincipalOpenSubset
     V = ambient_scheme(U_flat)
@@ -333,6 +333,7 @@ function extend!(
     C::Covering, D::IdDict{AbsSpec, Ideal};
     all_dense::Bool=false
   )
+  all(x->any(y->x===y, patches(C)), keys(D)) || error("ideals must be given on the `patches` of the covering")
   # push all nodes on which I is known in a heap
   visited = collect(keys(D))
   # The nodes which can be used for extension
