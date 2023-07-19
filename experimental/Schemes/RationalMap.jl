@@ -548,17 +548,18 @@ function pullback(phi::RationalMap, C::AbsAlgebraicCycle)
   for I in components(C)
     # Find a patch in Y on which this component is visible
     all_V = [V for V in affine_charts(Y) if !isone(I(V))]
-    @show all_V
-    min_var = minimum([ngens(OO(V)) for V in all_V])
-    @show min_var
-    all_V = [V for V in all_V if ngens(OO(V)) == min_var]
-    @show all_V
-    deg_bound = minimum([maximum([total_degree(lifted_numerator(g)) for g in gens(I(V))]) for V in all_V])
-    @show deg_bound
-    all_V = [V for V in all_V if minimum([total_degree(lifted_numerator(g)) for g in gens(I(V))]) == deg_bound]
-    @show all_V
-    V = first(all_V)
-    @show findfirst(x->x===V, affine_charts(Y))
+    for V in all_V
+  # @show all_V
+  # min_var = minimum([ngens(OO(V)) for V in all_V])
+  # @show min_var
+  # all_V = [V for V in all_V if ngens(OO(V)) == min_var]
+  # @show all_V
+  # deg_bound = minimum([maximum([total_degree(lifted_numerator(g)) for g in gens(I(V))]) for V in all_V])
+  # @show deg_bound
+  # all_V = [V for V in all_V if minimum([total_degree(lifted_numerator(g)) for g in gens(I(V))]) == deg_bound]
+  # @show all_V
+  # V = first(all_V)
+  # @show findfirst(x->x===V, affine_charts(Y))
 
     # Find a patch in X in which the pullback is visible
     JJ = IdealSheaf(X)
@@ -618,7 +619,8 @@ function pullback(phi::RationalMap, C::AbsAlgebraicCycle)
       end
     end
 
-    !success && error()
+    !success && @show "No luck with chart $V"
+    !success && break
 
     # If that fails, try the hard way
     for U in all_U
@@ -654,6 +656,7 @@ function pullback(phi::RationalMap, C::AbsAlgebraicCycle)
       end
     end
   end
+end
   return AlgebraicCycle(X, R, comps)
 end
 
