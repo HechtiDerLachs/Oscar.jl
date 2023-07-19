@@ -8,16 +8,38 @@ The ``aᵢ`` represent the pullbacks of the coordinates (`gens`) of some
 `affine_chart` ``V`` of the codomain ``Y`` under this map. 
 ```jldoctest
 julia> IP1 = covered_scheme(projective_space(QQ, [:s, :t]))
-covered scheme with 2 affine patches in its default covering
+Scheme
+  over rational field
+with default covering
+  described by patches
+    1: spec of multivariate polynomial ring
+    2: spec of multivariate polynomial ring
+  in the coordinate(s)
+    1: [(t//s)]
+    2: [(s//t)]
 
 julia> IP2 = covered_scheme(projective_space(QQ, [:x, :y, :z]))
-covered scheme with 3 affine patches in its default covering
+Scheme
+  over rational field
+with default covering
+  described by patches
+    1: spec of multivariate polynomial ring
+    2: spec of multivariate polynomial ring
+    3: spec of multivariate polynomial ring
+  in the coordinate(s)
+    1: [(y//x), (z//x)]
+    2: [(x//y), (z//y)]
+    3: [(x//z), (y//z)]
 
 julia> U = first(affine_charts(IP1))
-Spec of Multivariate polynomial ring in 1 variable over QQ
+Spectrum
+  of multivariate polynomial ring in 1 variable (t//s)
+    over rational field
 
 julia> V = first(affine_charts(IP2))
-Spec of Multivariate polynomial ring in 2 variables over QQ
+Spectrum
+  of multivariate polynomial ring in 2 variables (y//x), (z//x)
+    over rational field
 
 julia> t = first(gens(OO(U)))
 (t//s)
@@ -27,17 +49,12 @@ julia> Phi = oscar.RationalMap(IP1, IP2, U, V, [1//t, 1//t^2]);
 julia> realizations = oscar.realize_on_patch(Phi, U);
 
 julia> realizations[3]
-morphism from
-
-	Spec of Localization of multivariate polynomial ring in 1 variable over QQ at products of 0 elements
-
-to
-
-	Spec of Multivariate polynomial ring in 2 variables over QQ
-
-with coordinates
-
-	(t//s)^2, (t//s)
+Morphism
+  from [(t//s)]          spec of localized ring
+  to   [(x//z), (y//z)]  spec of multivariate polynomial ring
+given by the pullback function
+  (x//z) -> (t//s)^2
+  (y//z) -> (t//s)
 
 ```
 """
@@ -123,13 +140,8 @@ function realize_on_patch(Phi::RationalMap, U::AbsSpec)
   FX = FunctionField(X)
   A = [FX(a) for a in coordinate_images(Phi)]
   a = [b[U] for b in A]
-  @show length.(terms.(numerator.(a)))
-  @show length.(terms.(denominator.(a)))
   #a = [lift(simplify(OO(U)(numerator(b))))//lift(simplify(OO(U)(denominator(b)))) for b in a]
-  @show length.(terms.(numerator.(a)))
-  @show length.(terms.(denominator.(a)))
   list_for_V = _extend(U, a)
-  @show "first extension done"
   Psi = [SpecMor(W, ambient_space(V), b, check=false) for (W, b) in list_for_V]
   # Up to now we have maps to the ambient space of V. 
   # But V might be a hypersurface complement in there and we 
@@ -140,7 +152,6 @@ function realize_on_patch(Phi::RationalMap, U::AbsSpec)
   while !isone(ideal(OO(U), complement_equations))
     # Find another chart in the codomain which is hopefully easily accessible
     V_next, V_orig = _find_good_neighboring_patch(codomain_covering(Phi), covered_codomain_patches)
-    @show "neighbor found"
     # Get the glueing morphisms for the glueing to some already covered chart
     f, g = glueing_morphisms(glueings(codomain_covering(Phi))[(V_next, V_orig)])
     # Find one morphism which was already realized with this codomomain
@@ -154,12 +165,7 @@ function realize_on_patch(Phi::RationalMap, U::AbsSpec)
     pb_y0 = pullback(phi).(y0)
     rat_lift_y0 = [lifted_numerator(a)//lifted_denominator(a) for a in pb_y0]
     total_rat_lift = [evaluate(a, rat_lift_y0) for a in rat_lift_y1]
-    @show "finding new extension"
-    @show length.(terms.(numerator.(total_rat_lift)))
-    @show length.(terms.(denominator.(total_rat_lift)))
     #total_rat_lift = [lift(simplify(OO(U)(numerator(b))))//lift(simplify(OO(U)(denominator(b)))) for b in total_rat_lift]
-    @show length.(terms.(numerator.(total_rat_lift)))
-    @show length.(terms.(denominator.(total_rat_lift)))
     list_for_V_next = _extend(U, total_rat_lift)
     Psi = [SpecMor(W, ambient_space(V_next), b, check=false) for (W, b) in list_for_V_next]
     Psi = [_restrict_properly(psi, V_next) for psi in Psi]
@@ -181,19 +187,12 @@ function realize_on_open_subset(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
   if !any(x->x===V, patches(Y)) 
     VV = _find_chart(V, default_covering(Y))
   end
-  @show gens(OO(V))
   y = function_field(Y).(gens(OO(V)))
-  @show y
   dom_rep = domain_chart(Phi)
-  @show U === dom_rep
   cod_rep = codomain_chart(Phi)
-  @show V === cod_rep
   y_cod = [a[cod_rep] for a in y]::Vector{<:FieldElem}
-  @show y_cod
   x_dom = [evaluate(a, coordinate_images(Phi)) for a in y_cod]::Vector{<:FieldElem}
-  @show x_dom
   x = function_field(X).(x_dom)
-  @show x
   img_gens_frac = [a[U] for a in x]
   dens = [denominator(a) for a in img_gens_frac]
   U_sub = PrincipalOpenSubset(U, OO(U).(dens))
@@ -215,28 +214,18 @@ function realization_preview(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
   if !any(x->x===V, patches(Y)) 
     VV = _find_chart(V, default_covering(Y))
   end
-  @show gens(OO(V))
   y = function_field(Y).(gens(OO(V)))
-  @show y
   dom_rep = domain_chart(Phi)
-  @show U === dom_rep
   cod_rep = codomain_chart(Phi)
-  @show V === cod_rep
   y_cod = [a[cod_rep] for a in y]::Vector{<:FieldElem}
-  @show y_cod
   x_dom = [evaluate(a, coordinate_images(Phi)) for a in y_cod]::Vector{<:FieldElem}
-  @show x_dom
   x = function_field(X).(x_dom)
-  @show x
   img_gens_frac = [a[U] for a in x]
   realization_previews(Phi)[(U, V)] = img_gens_frac
   return img_gens_frac
 end
 
 function random_realization(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
-  if haskey(cheap_realizations(Phi), (U, V))
-    return cheap_realizations(Phi)[(U, V)]
-  end
   img_gens_frac = realization_preview(Phi, U, V)
   U_sub, img_gens = _random_extension(U, img_gens_frac)
   phi = SpecMor(U_sub, ambient_space(V), img_gens, check=true) # Set to false
@@ -250,7 +239,6 @@ function cheap_realization(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
   img_gens_frac = realization_preview(Phi, U, V)
   # Try to cancel the fractions heuristically
   for (k, f) in enumerate(img_gens_frac)
-    @show k
     a = numerator(f)
     b = denominator(f)
     aa = OO(U)(a)
@@ -258,10 +246,8 @@ function cheap_realization(Phi::RationalMap, U::AbsSpec, V::AbsSpec)
     new_den = one(aa)
     fac = factor(b)
     for (p, e) in fac
-      @show p
       success, q = divides(aa, OO(U)(p))
       while success && e > 0
-        @show "cancelling $p"
         aa = q
         e = e - 1
         success, q = divides(aa, OO(U)(p))
@@ -312,7 +298,7 @@ function realize(Phi::RationalMap)
     phi_cov = CoveringMorphism(domain_ref, codomain_covering(Phi), mor_dict, check=false)
     # Make the refinement known to the domain
     push!(coverings(domain(Phi)), domain_ref)
-    Phi.full_realization = CoveredSchemeMorphism(domain(Phi), codomain(Phi), phi_cov, check=false)
+    Phi.full_realization = CoveredSchemeMorphism(domain(Phi), codomain(Phi), phi_cov)
   end
   return Phi.full_realization
 end
@@ -322,7 +308,6 @@ underlying_morphism(Phi::RationalMap) = realize(Phi)
 function _random_extension(U::AbsSpec, a::Vector{<:FieldElem})
   R = ambient_coordinate_ring(U)
   if iszero(length(a))
-    @show "trivial return"
     return [(U, elem_type(U)[])]
   end
   F = parent(first(a))
@@ -333,11 +318,8 @@ function _random_extension(U::AbsSpec, a::Vector{<:FieldElem})
   # for all the a's.
   I_undef = ideal(OO(U), one(OO(U)))
   for f in a
-    @show "computing ideal quotient for $f"
     J = quotient(ideal(OO(U), denominator(f)), ideal(OO(U), numerator(f)))
-    @show "intersecting..."
     I_undef = intersect(I_undef, J)
-    @show I_undef
   end
   I_undef = radical(I_undef)
 # @show I_undef
@@ -359,7 +341,6 @@ end
 function _extend(U::AbsSpec, a::Vector{<:FieldElem})
   R = ambient_coordinate_ring(U)
   if iszero(length(a))
-    @show "trivial return"
     return [(U, elem_type(U)[])]
   end
   F = parent(first(a))
@@ -398,36 +379,21 @@ function _extend(U::AbsSpec, a::Vector{<:FieldElem})
 #   @assert numerator(a[k])*new_den == denominator(a[k])*num
 #   a[k] = fraction(num)//fraction(new_den)
 # end
-  @show ngens(OO(U))
-  @show ngens(OO(simplify(U)))
   for f in a
-    @show "computing ideal quotient for $f"
     J = quotient(ideal(OO(U), denominator(f)), ideal(OO(U), numerator(f)))
-    @show "intersecting..."
     I_undef = intersect(I_undef, J)
-    @show I_undef
   end
-  @show length(small_generating_set(I_undef))
-  @show [length(terms(lifted_numerator(a))) for a in small_generating_set(I_undef)]
   #I_undef = ideal(OO(U), small_generating_set(I_undef))
   I_undef = radical(I_undef)
-# @show I_undef
-# @show equidimensional_decomposition_radical(saturated_ideal(I_undef))
-# I_undef = last(equidimensional_decomposition_radical(I_undef))
 
   result = Vector{Tuple{AbsSpec, Vector{RingElem}}}()
 
   for g in small_generating_set(I_undef)
-    @show g
     Ug = PrincipalOpenSubset(U, g)
-    @show gens(OO(Ug))
-    @show denominators(inverted_set(OO(Ug)))
-    @show a
     b = [OO(Ug)(numerator(f), denominator(f)) for f in a]
     #b = [divides(OO(Ug)(numerator(f)), OO(Ug)(denominator(f)))[2] for f in a]
     push!(result, (Ug, b))
   end
-  @show "done"
 
   return result
 end
@@ -484,7 +450,6 @@ function _restrict_properly(
   pbh = pullback(f).(h)
   U = domain(f)
   W = ambient_scheme(U)
-  @show length(terms(lifted_numerator(complement_equation(U))))
   UU = PrincipalOpenSubset(W, push!(OO(W).(lifted_numerator.(pbh)), complement_equation(U)))
   return restrict(f, UU, V, check=false)
 end
@@ -506,7 +471,6 @@ function pushforward(Phi::RationalMap, D::AbsAlgebraicCycle)
       k === nothing && error("no affine chart found on which the component was non-trivial")
       U = affine_charts(X)[k]
     else
-      @show "found patch which is already realized"
       U = real_patches[k]
     end
     loc_phi = realize_on_patch(Phi, U)
@@ -569,48 +533,30 @@ function pullback(phi::RationalMap, C::AbsAlgebraicCycle)
       return maximum(vcat([total_degree(numerator(f)) for f in a], [total_degree(denominator(f)) for f in a]))
     end
     sort!(all_U, lt=(x,y)->complexity(x)<complexity(y))
-    @show complexity.(all_U)
 
     # First try to get hold of the component via cheap realizations 
     success = false
     for U in all_U
-      @show findfirst(x->x===U, affine_charts(X))
       psi = cheap_realization(phi, U, V)
-      @show psi
       U_sub = domain(psi)
-      @show complement_equation(U_sub)
       J = pullback(psi)(saturated_ideal(I(V)))
-      @show U
-      @show isone(J)
-      @show gens(J)
       if !isone(J)
         JJ = IdealSheaf(X, domain(psi), gens(J))
-        @show gens(JJ(domain(psi)))
-        @show dim(JJ)
         comps[JJ] = C[I]
         success = true
         break
       end
     end
 
-    success && @show "succeeded in doing it the cheap way."
-    @show gens(OO(V))
-    @show gens(I(V))
     success && break
 
-    @show "trying random realizations."
 
     success = false
     for U in all_U
       psi = random_realization(phi, U, V)
       U_sub = domain(psi)
-      @show complement_equation(U_sub)
-      @show saturated_ideal(I(V))
-      @show dim(saturated_ideal(I(V)))
 
       J = pullback(psi)(saturated_ideal(I(V)))
-      @show U
-      @show isone(J)
       if !isone(J)
         JJ = IdealSheaf(X, domain(psi), gens(J))
         comps[JJ] = C[I]
@@ -619,27 +565,22 @@ function pullback(phi::RationalMap, C::AbsAlgebraicCycle)
       end
     end
 
-    !success && @show "No luck with chart $V"
     !success && break
 
     # If that fails, try the hard way
     for U in all_U
       psi_loc = realize_maximally_on_open_subset(phi, U, V)
-      @show length(psi_loc)
       # If we are in different components, skip
       length(psi_loc) > 0 || continue
       found = 0
       J = ideal(OO(domain(first(psi_loc))), elem_type(OO(domain(first(psi_loc))))[])
       cod_ideal = ideal(OO(U), elem_type(OO(U))[])
       for (k, psi) in enumerate(psi_loc)
-        @show dim(cod_ideal)
         if dim(cod_ideal) < dim(I)
-          @show "stop search because codimension of complement is too big"
           found = 0
           break
         end
         J = pullback(psi)(I(V))
-        @show ngens(J), length.(terms.(lifted_numerator.(gens(J))))
         if !isone(J)
           @assert dim(J) == dim(I)
           found = k
