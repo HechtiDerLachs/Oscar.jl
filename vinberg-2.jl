@@ -34,7 +34,7 @@ X3cov, piS = relatively_minimal_model(X3);
 
 basisNSX3, _, NSX3 = algebraic_lattice(X3);
 
-b, I = Oscar.is_isomorphic_with_permutation(gram_matrix(NS), gram_matrix(NSX3))
+b, I = Oscar._is_equal_up_to_permutation_with_permutation(gram_matrix(NS), gram_matrix(NSX3))
 
 @assert gram_matrix(NSX3) == gram_matrix(NS)[I,I]
 
@@ -100,7 +100,7 @@ _,pi2 = relatively_minimal_model(X2)
 U2 = weierstrass_chart(X2)
 U3 = weierstrass_chart(X3)
 
-Oscar.RationalMap(S2,S3, U2, U3, imgs)
+Oscar.RationalMap(S2,S3, U2, U3, imgs);
 
 V3 = S3[1][1] # The surface in the Weierstrass chart
 pi3_cov = covering_morphism(pi3)
@@ -241,7 +241,7 @@ ff, gg = oscar.identification_maps(WW)
 
 frac_list = [a[WW_orig] for a in img_gens2]
 frac_list = [fraction(pullback(ff)(numerator(a)))//fraction(pullback(ff)(denominator(a))) for a in frac_list]
-psi = oscar.RationalMap(X2_res, X3_res, W2_res, W3_res, frac_list)
+psi = oscar.RationalMap(X2_res, X3_res, W2_res, W3_res, frac_list);
 set_attribute!(psi, :is_isomorphism, true)
 #oscar.realize_on_patch(psi, W2_res)
 
@@ -251,7 +251,23 @@ D = WeilDivisor[]
 for dd in divisors3
   push!(D, pullback(psi, dd))
 end
-true
+
+divisors2, _ = algebraic_lattice(X2)
+
+ident = IdDict()
+for E in D
+  k = findfirst(x->x==E, divisors2)
+  if k !== nothing
+    ident[E] = divisors2[k]
+  end
+end
+
+non_ident = [E for E in D if !(E in keys(ident))]
+    
+int_num = IdDict()
+for E in non_ident
+  int_num[E] = [intersect(E, F) for F in divisors2]
+end
 # Task psi =  pi3^-1 \circ phi \circ pi2 is an isomorphism X2 -> X3
 # pull back all divisors from algebraic_lattice(X3)[1] to X2 via psi
 # and compute their basis representation.
