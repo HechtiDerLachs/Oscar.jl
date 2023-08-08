@@ -1,8 +1,8 @@
-@doc raw"""
+@doc """
 Welcome to OSCAR version $(VERSION_NUMBER)
 
 OSCAR is developed by a large group of international collaborators, coordinated
-currently, mainly at the Technische Universität Kaiserslautern.
+mainly at the University of Kaiserslautern-Landau.
 
 Written in Julia, it combines the well established systems
  * [`Singular`](@ref Singular)
@@ -97,6 +97,9 @@ function __init__()
     add_verbose_scope(:EllipticSurface)
     add_assert_scope(:EllipticSurface)
 
+    add_verbose_scope(:RationalMap)
+    add_assert_scope(:RationalMap)
+
     add_verbose_scope(:Glueing)
     add_assert_scope(:Glueing)
 
@@ -116,6 +119,7 @@ function __init__()
     add_verbose_scope(:GlobalTateModel)
     add_verbose_scope(:WeierstrassModel)
     add_verbose_scope(:HypersurfaceModel)
+    add_verbose_scope(:FTheoryConstructorInformation)
     
     add_verbosity_scope(:LinearQuotients)
 end
