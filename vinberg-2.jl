@@ -1,7 +1,7 @@
 include("test/AlgebraicGeometry/Schemes/fibration_hop.jl")
 
-kk = GF(29)
-#kk = QQ
+#kk = GF(29)
+kk = QQ
 Qt, t = polynomial_ring(kk, :t)
 
 Qtf = fraction_field(Qt)
@@ -34,7 +34,7 @@ X3cov, piS = relatively_minimal_model(X3);
 
 basisNSX3, _, NSX3 = algebraic_lattice(X3);
 
-b, I = Oscar.is_isomorphic_with_permutation(gram_matrix(NS), gram_matrix(NSX3))
+b, I = Oscar._is_equal_up_to_permutation_with_permutation(gram_matrix(NS), gram_matrix(NSX3))
 
 @assert gram_matrix(NSX3) == gram_matrix(NS)[I,I]
 
@@ -100,7 +100,7 @@ _,pi2 = relatively_minimal_model(X2)
 U2 = weierstrass_chart(X2)
 U3 = weierstrass_chart(X3)
 
-Oscar.RationalMap(S2,S3, U2, U3, imgs)
+Oscar.RationalMap(S2,S3, U2, U3, imgs);
 
 V3 = S3[1][1] # The surface in the Weierstrass chart
 pi3_cov = covering_morphism(pi3)
@@ -241,20 +241,63 @@ ff, gg = oscar.identification_maps(WW)
 
 frac_list = [a[WW_orig] for a in img_gens2]
 frac_list = [fraction(pullback(ff)(numerator(a)))//fraction(pullback(ff)(denominator(a))) for a in frac_list]
-psi = oscar.RationalMap(X2_res, X3_res, W2_res, W3_res, frac_list)
+psi = oscar.RationalMap(X2_res, X3_res, W2_res, W3_res, frac_list);
 set_attribute!(psi, :is_isomorphism, true)
 #oscar.realize_on_patch(psi, W2_res)
 
 #realiz = oscar.realize_maximally_on_open_subset(psi, W2_res, W3_res)
 divisors3, _ = algebraic_lattice(X3)
 D = WeilDivisor[]
+set_verbose_level(:RationalMap, 1)
 for dd in divisors3
   push!(D, pullback(psi, dd))
 end
-true
-# Task psi =  pi3^-1 \circ phi \circ pi2 is an isomorphism X2 -> X3
-# pull back all divisors from algebraic_lattice(X3)[1] to X2 via psi
-# and compute their basis representation.
-# (equivalently you can pushforward all in algebraic_lattice(X2)
-# and compute their basis representation
+
+divisors2, _,NSX2 = algebraic_lattice(X2)
+id_mat = one(MatrixSpace(QQ, 20, 20))
+ident = IdDict()
+for E in D
+  k = findfirst(x->x==E, divisors2)
+  if k !== nothing
+    ident[E] = id_mat[k,:]
+    #divisors2[k], k
+  end
+end
+
+non_ident = [E for E in D if !(E in keys(ident))]
+    
+int_num = IdDict()
+for E in non_ident
+  ident[E] = matrix(QQ,1,20,[intersect(E, F) for F in divisors2])*inv(gram_matrix(ambient_space(NSX2)))
+end
+
+B = reduce(vcat, [ident[E] for E in D])
+#=
+[4   2    0    0    0       0    0       0       0   -4      -4   -8      -7   -6      -5   -4      -3   -2      -1    0]
+[0   0    0    0    0       0    0       0       0    0       0    1       0    0       0    0       0    0       0    0]
+[0   1    0    0    0       0    0       0       0    0       0    0       0    0       0    0       0    0       0    0]
+[1   0    0    0    0       0    0       0       0   -1      -1   -2      -2   -2      -2   -2      -2   -2      -1    0]
+[0   0    0    0    0       0    0       0       0    0       0    0       0    0       0    0       0    1       0    0]
+[0   0    0    0    0       0    0       0       0    0       0    0       0    0       0    0       1    0       0    0]
+[0   0    0    0    0       0    0       0       0    0       0    0       0    0       0    1       0    0       0    0]
+[0   0    0    0    0       0    0       0       0    0       0    0       0    0       1    0       0    0       0    0]
+[0   0    0    0    0       0    0       0       0    0       0    0       0    1       0    0       0    0       0    0]
+[0   0    0    0    0       0    0       0       0    0       0    0       0    0       0    0       0    0       1    0]
+[0   0    1    2    3    5//2    2    3//2    3//2   -2   -3//2   -3   -5//2   -2   -3//2   -1   -1//2    0    1//2    1]
+[4   2   -1   -2   -3   -5//2   -2   -3//2   -3//2   -3   -5//2   -5   -9//2   -4   -7//2   -3   -5//2   -2   -3//2   -1]
+[0   0    1    0    0       0    0       0       0    0       0    0       0    0       0    0       0    0       0    0]
+[0   0    0    1    0       0    0       0       0    0       0    0       0    0       0    0       0    0       0    0]
+[0   0    0    0    1       0    0       0       0    0       0    0       0    0       0    0       0    0       0    0]
+[0   0    0    0    0       1    0       0       0    0       0    0       0    0       0    0       0    0       0    0]
+[0   0    0    0    0       0    1       0       0    0       0    0       0    0       0    0       0    0       0    0]
+[0   0    0    0    0       0    0       1       0    0       0    0       0    0       0    0       0    0       0    0]
+[2   1   -1   -2   -3   -5//2   -2   -3//2   -3//2   -2   -5//2   -4   -7//2   -3   -5//2   -2   -3//2   -1   -1//2    0]
+[0   0    0    0    0       0    0       0       1    0       0    0       0    0       0    0       0    0       0    0]
+=#
+NSX3inX2 = lattice(ambient_space(NSX2),B)
+
+@test NSX3inX2 == NSX2
+
+@test gram_matrix(NSX3inX2) == gram_matrix(NSX3)  # pullback preserves intersection product
+
 
