@@ -56,8 +56,6 @@ include("Schemes/IdealSheaves.jl")
 include("Schemes/AlgebraicCycles.jl")
 include("Schemes/WeilDivisor.jl")
 include("Schemes/CoveredProjectiveSchemes.jl")
-include("Schemes/elliptic_surface.jl")
-include("Schemes/RationalMap.jl")
 
 include("Matrix/matrix.jl")
 include("Schemes/SimplifiedSpec.jl")
