@@ -94,7 +94,12 @@ Return the generic fiber as an elliptic curve.
 """
 generic_fiber(S::EllipticSurface) = S.E
 
-weierstrass_chart(S::EllipticSurface) = S.Weierstrasschart
+function weierstrass_chart(S::EllipticSurface)
+  if !isdefined(S, :Weierstrasschart)
+    relatively_minimal_model(S)
+  end
+  return S.Weierstrasschart
+end
 
 @attr AbsSpec function weierstrass_chart_on_minimal_model(S::EllipticSurface)
   # make sure the minimal model is known
