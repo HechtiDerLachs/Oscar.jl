@@ -1356,20 +1356,6 @@ function basis_representation(X::EllipticSurface, D::WeilDivisor)
   return v*inv(G)
 end
 
-################################################################################
-#
-# patches for Oscar
-#
-################################################################################
-
-
-# Disable simplification for the usage of (decorated) quotient rings within the
-# schemes framework (speedup of ~2).
-function simplify(f::MPolyQuoRingElem{<:Union{<:MPolyRingElem, <:MPolyQuoLocRingElem,
-                                              <:MPolyQuoRingElem, <:MPolyLocRingElem}})
-  return f
-end
-
 ########################################################################
 # Internal functionality for Weierstrass transformation 
 ########################################################################
