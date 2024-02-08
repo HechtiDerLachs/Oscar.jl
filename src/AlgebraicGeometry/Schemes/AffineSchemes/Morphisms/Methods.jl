@@ -206,8 +206,8 @@ function _restrict_codomain(f::AbsSpecMor, D::PrincipalOpenSubset; check::Bool=t
   D === codomain(f) && return f
   if ambient_scheme(D) === codomain(f) 
     @check is_unit(pullback(f)(complement_equation(D))) "complement equation does not pull back to a unit"
-    !_has_coefficient_map(pullback(f)) && return SpecMor(domain(f), D, OO(domain(f)).(pullback(f).(gens(OO(codomain(f))))), check=false)
-    return SpecMor(domain(f), D, coefficient_map(pullback(f)), OO(domain(f)).(pullback(f).(gens(OO(codomain(f))))), check=false)
+    !_has_coefficient_map(pullback(f)) && return morphism(domain(f), D, OO(domain(f)).(pullback(f).(gens(OO(codomain(f))))), check=false)
+    return morphism(domain(f), D, coefficient_map(pullback(f)), OO(domain(f)).(pullback(f).(gens(OO(codomain(f))))), check=false)
   end
   @check is_subscheme(D, codomain(f)) "codomain incompatible"
   @check is_subscheme(domain(f), preimage(f, D))
