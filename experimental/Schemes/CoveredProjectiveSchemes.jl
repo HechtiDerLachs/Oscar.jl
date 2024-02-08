@@ -290,10 +290,10 @@ function Base.show(io::IO, ::MIME"text/plain", CPS::CoveredProjectiveScheme)
   print(io, Dedent(), "covered with ", ItemQuantity(n, "projective patch"))
   print(io, Indent())
   l = ndigits(n)
-  for i in 1:n
+  for (i, ppp) in enumerate(pp)
     li = ndigits(i)
     println(io)
-    print(io, " "^(l-li)*"$(i): ", Lowercase(), pp[i])
+    print(io, " "^(l-li)*"$(i): ", Lowercase(), ppp)
   end
   print(io, Dedent())
 end
