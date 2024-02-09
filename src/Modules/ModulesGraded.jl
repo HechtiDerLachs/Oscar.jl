@@ -674,12 +674,13 @@ function graded_map(F::FreeMod{T}, V::Vector{<:AbstractFreeModElem{T}}; check::B
   G = grading_group(R)
   nrows = length(V)
   ncols = rank(F)
+  @check true # Trigger an error if checks are supposed to be disabled.
   
   source_degrees = Vector{eltype(G)}()
   for i in 1:nrows
     for j in 1:ncols
       if !is_zero(coordinates(V[i])[j])
-        push!(source_degrees, degree(coordinates(V[i])[j]) + degree(F[j]))
+        push!(source_degrees, degree(coordinates(V[i])[j]; check) + degree(F[j]; check))
         break
       end
     end
@@ -806,7 +807,7 @@ function degree(f::FreeModuleHom; check::Bool=true)
 end
 
 @doc raw"""
-    is_graded(a::FreeModuleHom)
+    is_graded(a::ModuleFPHom)
 
 Return `true` if `a` is graded, `false` otherwise.
 
@@ -837,8 +838,33 @@ julia> is_graded(a)
 true
 ```
 """
-function is_graded(f::FreeModuleHom)
-  return isdefined(f, :d)
+function is_graded(f::ModuleFPHom)
+  isdefined(f, :d) && return true
+  (is_graded(domain(f)) && is_graded(codomain(f))) || return false
+  T1 = domain(f)
+  T2 = codomain(f)
+  domain_degrees = degrees_of_generators(T1)
+  df = nothing
+  for i in 1:length(domain_degrees)
+    image_vector = f(T1[i])
+    if isempty(coordinates(image_vector)) || is_zero(image_vector)
+      continue
+    end
+    current_df = degree(image_vector) - domain_degrees[i]
+    if df === nothing
+      df = current_df
+    elseif df != current_df
+      return false
+    end
+  end
+  if df === nothing
+    R = base_ring(T1)
+    G = grading_group(R)
+    f.d = zero(G)
+    return true
+  end
+  f.d = df
+  return true
 end
 
 @doc raw"""
@@ -1888,7 +1914,7 @@ function _sheaf_cohomology_bgg(M::ModuleFP{T},
                                h::Int) where {T <: MPolyDecRingElem}
 
   sing_mod, weights = _weights_and_sing_mod(M)
-  reg = Int(cm_regularity(M))
+  reg = Int(cm_regularity(M; check=false))
 
   values = Singular.LibSheafcoh.sheafCohBGGregul_w(sing_mod,
                                                    l, h, reg,
@@ -2493,7 +2519,7 @@ end
 function forget_decoration(f::FreeModuleHom_dec)
   F = forget_decoration(domain(f))
   G = forget_decoration(codomain(f))
-  return hom(F, G, [forget_decoration(f(v)) for v in gens(domain(f))])
+  return hom(F, G, [forget_decoration(f(v)) for v in gens(domain(f))]; check=false)
 end
 
 function matrix(a::FreeModuleHom_dec)
