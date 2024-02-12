@@ -632,6 +632,7 @@ given by the pullback function
   domain_chart::AbsSpec
   codomain_chart::AbsSpec
   coord_imgs::Vector{<:FieldElem}
+  run_internal_checks::Bool
 
   ### Various fields for caching
   patch_representatives::IdDict{<:AbsSpec, <:Tuple{<:AbsSpec, <:Vector{<:FieldElem}}}
@@ -666,7 +667,7 @@ given by the pullback function
     maximal_extensions = IdDict{Tuple{AbsSpec, AbsSpec}, Vector{AbsSpecMor}}()
     cheap_realizations = IdDict{Tuple{AbsSpec, AbsSpec}, AbsSpecMor}()
     return new{typeof(X), typeof(Y)}(X, Y, domain_covering, codomain_covering, 
-                                     U, V, a, patch_repr, realizations, 
+                                     U, V, a, check, patch_repr, realizations, 
                                      realization_previews, maximal_extensions,
                                      cheap_realizations
                                     )

@@ -373,7 +373,7 @@ Computes a full realization of `Phi` as a `CoveredSchemeMorphism`. Note
 that this computation is very expensive and usage of this method should 
 be avoided.
 """
-function realize(Phi::MorphismFromRationalFunctions)
+function realize(Phi::MorphismFromRationalFunctions; check::Bool=true)
   if !isdefined(Phi, :full_realization)
     realizations = AbsSpecMor[]
     mor_dict = IdDict{AbsSpec, AbsSpecMor}()
@@ -387,15 +387,15 @@ function realize(Phi::MorphismFromRationalFunctions)
     domain_ref = Covering([domain(phi) for phi in realizations])
     inherit_gluings!(domain_ref, domain_covering(Phi))
     # TODO: Inherit the decomposition_info, too!
-    phi_cov = CoveringMorphism(domain_ref, codomain_covering(Phi), mor_dict, check=false)
+    phi_cov = CoveringMorphism(domain_ref, codomain_covering(Phi), mor_dict; check)
     # Make the refinement known to the domain
     push!(coverings(domain(Phi)), domain_ref)
-    Phi.full_realization = CoveredSchemeMorphism(domain(Phi), codomain(Phi), phi_cov)
+    Phi.full_realization = CoveredSchemeMorphism(domain(Phi), codomain(Phi), phi_cov; check)
   end
   return Phi.full_realization
 end
 
-underlying_morphism(Phi::MorphismFromRationalFunctions) = realize(Phi)
+underlying_morphism(Phi::MorphismFromRationalFunctions) = realize(Phi; check=Phi.run_internal_checks)
 
 ###
 # Find a random open subset `W ⊂ U` to which all the rational functions 
