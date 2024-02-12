@@ -3071,8 +3071,13 @@ true
 ### Some auxiliary functions
 
 @attr MPolyLocalizedIdeal function radical(I::MPolyLocalizedIdeal)
-  J = pre_saturated_ideal(I)
-  return ideal(base_ring(I), gens(radical(J)))
+  has_attribute(I, :is_prime) && get_attribute(I, :is_prime) && return I
+  # heuristics have shown that the radical of the saturated ideal 
+  # is often quicker 
+  #J = pre_saturated_ideal(I)
+  J = saturated_ideal(I)
+  R = base_ring(I)
+  return ideal(base_ring(I), [g for g in R.(gens(radical(J))) if !is_zero(g)])
 end
 
 @attr function dim(I::MPolyLocalizedIdeal)

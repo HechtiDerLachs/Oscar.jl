@@ -1885,9 +1885,14 @@ end
 ### Some auxiliary functions
 
 @attr MPolyQuoLocalizedIdeal function radical(I::MPolyQuoLocalizedIdeal)
-  W = base_ring(I)
-  J = pre_image_ideal(I)
-  return ideal(W, [g for g in W.(gens(radical(J))) if !iszero(g)])
+  has_attribute(I, :is_prime) && get_attribute(I, :is_prime) && return I
+  has_attribute(I, :is_radical) && get_attribute(I, :is_radical) && return I
+  R = base_ring(I)
+  R_simp, iso, iso_inv = simplify(R) # This usually does not cost much
+  I_simp = ideal(R_simp, restricted_map(iso).(lifted_numerator.(gens(I))))
+  J = pre_image_ideal(I_simp)
+  pre_result = ideal(R_simp, [g for g in R_simp.(gens(radical(J))) if !iszero(g)])
+  return ideal(R, restricted_map(iso_inv).(lifted_numerator.(gens(pre_result))))
 end
 
 @attr function dim(I::MPolyQuoLocalizedIdeal)
