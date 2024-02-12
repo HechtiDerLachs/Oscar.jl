@@ -42,13 +42,13 @@ function compose(f::AbsCoveredSchemeMorphism, g::AbsCoveredSchemeMorphism)
   if codomain(cf) === domain(cg) 
     # The easy case
     cfg = compose(cf, cg)
-    return CoveredSchemeMorphism(X, Z, cfg)
+    return CoveredSchemeMorphism(X, Z, cfg; check=false)
   elseif is_refinement(codomain(cf), domain(cg))[1]
     # Another rather easy case: We only have to put the refinement morphism 
     # in the middle.
     ref = refinement_morphism(codomain(cf), domain(cg))
     cf_ref_cg = compose(cf, compose(ref, cg))
-    return CoveredSchemeMorphism(X, Z, cf_ref_cg, check=true)
+    return CoveredSchemeMorphism(X, Z, cf_ref_cg, check=false)
   elseif is_refinement(domain(cg), codomain(cf))[1]
     # A more tricky case: 
     #
@@ -64,7 +64,7 @@ function compose(f::AbsCoveredSchemeMorphism, g::AbsCoveredSchemeMorphism)
     B = codomain(cf)
     C = domain(ref)
     AxC, to_A, to_C = fiber_product(cf, ref)
-    return CoveredSchemeMorphism(X, Z, compose(to_C, cg), check=true)
+    return CoveredSchemeMorphism(X, Z, compose(to_C, cg), check=false)
   else
     # The most complicated case:
     #
@@ -86,7 +86,7 @@ function compose(f::AbsCoveredSchemeMorphism, g::AbsCoveredSchemeMorphism)
     ref_C = refinement_morphism(C, default_covering(Y))
     BxC, to_B, to_C = fiber_product(ref_B, ref_C)
     AxBxC, to_A, to_BxC = fiber_product(cf, to_B)
-    return CoveredSchemeMorphism(X, Z, compose(to_BxC, compose(to_C, cg)), check=true)
+    return CoveredSchemeMorphism(X, Z, compose(to_BxC, compose(to_C, cg)), check=false)
   end
 end
 

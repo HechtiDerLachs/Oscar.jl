@@ -193,7 +193,7 @@ function _restrict_domain(f::AbsSpecMor, D::PrincipalOpenSubset; check::Bool=tru
   D === domain(f) && return f
   ambient_scheme(D) === domain(f) && return morphism(D, codomain(f), OO(D).(pullback(f).(gens(OO(codomain(f))))), check=false)
   @check is_subscheme(D, domain(f)) "domain incompatible"
-  return morphism(D, codomain(f), OO(D).(pullback(f).(gens(OO(codomain(f))))), check=check)
+  return morphism(D, codomain(f), [OO(D)(x; check) for x in pullback(f).(gens(OO(codomain(f))))], check=check)
 end
 
 function _restrict_domain(f::AbsSpecMor, D::AbsSpec; check::Bool=true)
@@ -207,19 +207,19 @@ function _restrict_codomain(f::AbsSpecMor, D::PrincipalOpenSubset; check::Bool=t
   if ambient_scheme(D) === codomain(f) 
     @check is_unit(pullback(f)(complement_equation(D))) "complement equation does not pull back to a unit"
     !_has_coefficient_map(pullback(f)) && return morphism(domain(f), D, OO(domain(f)).(pullback(f).(gens(OO(codomain(f))))), check=false)
-    return morphism(domain(f), D, coefficient_map(pullback(f)), OO(domain(f)).(pullback(f).(gens(OO(codomain(f))))), check=false)
+    return morphism(domain(f), D, coefficient_map(pullback(f)), [OO(domain(f))(x; check) for x in pullback(f).(gens(OO(codomain(f))))], check=false)
   end
   @check is_subscheme(D, codomain(f)) "codomain incompatible"
   @check is_subscheme(domain(f), preimage(f, D))
   !_has_coefficient_map(pullback(f)) && return morphism(domain(f), D, OO(domain(f)).(pullback(f).(gens(OO(codomain(f))))), check=check)
-  return morphism(domain(f), D, OO(domain(f)).(pullback(f).(gens(OO(codomain(f))))), check=check)
+  return morphism(domain(f), D, [OO(domain(f))(x; check) for x in pullback(f).(gens(OO(codomain(f))))], check=check)
 end
 
 function _restrict_codomain(f::AbsSpecMor, D::AbsSpec; check::Bool=true)
   @check is_subset(D, codomain(f)) "codomain incompatible"
   @check is_subset(domain(f), preimage(f, D))
   !_has_coefficient_map(pullback(f)) && return morphism(domain(f), D, OO(domain(f)).(pullback(f).(gens(OO(codomain(f))))), check=check)
-  return morphism(domain(f), D, coefficient_map(pullback(f)), OO(domain(f)).(pullback(f).(gens(OO(codomain(f))))), check=check)
+  return morphism(domain(f), D, coefficient_map(pullback(f)), [OO(domain(f))(x; check) for x in pullback(f).(gens(OO(codomain(f))))], check=check)
 end
 
 @doc raw"""
