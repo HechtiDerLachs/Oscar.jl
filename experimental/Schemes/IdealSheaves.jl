@@ -57,7 +57,7 @@ function IdealSheaf(X::AbsProjectiveScheme, I::MPolyIdeal)
   for U in patches(C)
     I[U] = ideal(OO(U), dehomogenization_map(X, U).(g))
   end
-  return IdealSheaf(X_covered, I, check=true)
+  return IdealSheaf(X_covered, I, check=false)
 end
 
 function IdealSheaf(X::AbsProjectiveScheme, I::MPolyQuoIdeal) 
@@ -71,7 +71,7 @@ function IdealSheaf(X::AbsProjectiveScheme, I::MPolyQuoIdeal)
   for U in patches(C)
     I[U] = ideal(OO(U), dehomogenization_map(X, U).(g))
   end
-  return IdealSheaf(X_covered, I, check=true)
+  return IdealSheaf(X_covered, I, check=false)
 end
 
 ideal_sheaf(X::AbsProjectiveScheme, I::MPolyIdeal) = IdealSheaf(X, I)

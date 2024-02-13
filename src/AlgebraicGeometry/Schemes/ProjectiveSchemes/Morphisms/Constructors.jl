@@ -197,7 +197,7 @@ function base_change(phi::Any, IP::AbsProjectiveScheme)
   S = homogeneous_coordinate_ring(IP)
   SS, pb_Phi = change_base_ring(phi, S)
   result = projective_scheme(SS)
-  psi = morphism(result, IP, pb_Phi)
+  psi = morphism(result, IP, pb_Phi; check=false)
   return result, psi
 end
 

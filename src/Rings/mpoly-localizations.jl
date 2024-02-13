@@ -3077,6 +3077,8 @@ true
   #J = pre_saturated_ideal(I)
   J = saturated_ideal(I)
   R = base_ring(I)
+  @show typeof(R)
+  @show typeof(coefficient_ring(R))
   return ideal(base_ring(I), [g for g in R.(gens(radical(J))) if !is_zero(g)])
 end
 

@@ -75,12 +75,13 @@ with default covering
       V_i = affine_charts(Y)[i]
       mor_dict[U_i] = SpecMor(U_i, V_j, 
                                hom(OO(V_j), OO(U_i), 
-                                   [OO(U_i)(dehom(pbf(gen(SY, k)))) for k in 1:ngens(SY) if k != i]
+                                   [OO(U_i)(dehom(pbf(gen(SY, k)))) for k in 1:ngens(SY) if k != i];
+                                   check=false
                                   )
                               )
     end
     phi = CoveringMorphism(default_covering(X), default_covering(Y), mor_dict, check=false)
-    ff = CoveredSchemeMorphism(X, Y, phi)
+    ff = CoveredSchemeMorphism(X, Y, phi; check=false)
     return ff
   end
 
@@ -109,7 +110,7 @@ with default covering
   phi = CoveringMorphism(CC, default_covering(Y), mor_dict, check=false)
   push!(coverings(X), CC)
 
-  ff = CoveredSchemeMorphism(X, Y, phi)
+  ff = CoveredSchemeMorphism(X, Y, phi; check=false)
   return ff
 end
 
@@ -137,12 +138,14 @@ end
       V_i = affine_charts(Y)[i]
       mor_dict[U_i] = SpecMor(U_i, V_i, 
                                hom(OO(V_i), OO(U_i), coeff_map,
-                                   [OO(U_i)(dehom(pbf(gen(SY, k)))) for k in 1:ngens(SY) if k != i]
-                                  )
+                                   [OO(U_i)(dehom(pbf(gen(SY, k)))) for k in 1:ngens(SY) if k != i];
+                                   check=false
+                                  );
+                               check=false
                               )
     end
     phi = CoveringMorphism(default_covering(X), default_covering(Y), mor_dict, check=false)
-    ff = CoveredSchemeMorphism(X, Y, phi)
+    ff = CoveredSchemeMorphism(X, Y, phi; check=false)
     return ff
   end
 
@@ -158,8 +161,10 @@ end
       u = inv(OO(U_ij)(denom))
       mor_dict[U_ij] = SpecMor(U_ij, V_j, 
                                hom(OO(V_j), OO(U_ij), coeff_map,
-                                   [OO(U_ij)(dehom(pbf(gen(SY, k))))*u for k in 1:ngens(SY) if k != j]
-                                  )
+                                   [OO(U_ij)(dehom(pbf(gen(SY, k))))*u for k in 1:ngens(SY) if k != j];
+                                   check=false
+                                  );
+                               check=false
                               )
       #@assert _has_coefficient_map(pullback(mor_dict[U_ij]))
     end
@@ -171,7 +176,7 @@ end
   phi = CoveringMorphism(CC, default_covering(Y), mor_dict, check=false)
   push!(coverings(X), CC)
 
-  ff = CoveredSchemeMorphism(X, Y, phi)
+  ff = CoveredSchemeMorphism(X, Y, phi; check=false)
   return ff
 end
 

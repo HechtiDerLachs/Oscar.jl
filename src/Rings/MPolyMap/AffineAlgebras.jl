@@ -241,7 +241,7 @@ function preimage(
            CT <: Union{MPolyRing{T}, MPolyQuoRing{U2}}}
   @req base_ring(I) === codomain(f) "Parent mismatch"
   R = base_ring(domain(f))
-  help_map = hom(R, domain(f), gens(domain(f)))
+  help_map = hom(R, domain(f), gens(domain(f)); check=false)
   g = compose(help_map, f)
   K = kernel(g)
   return ideal(domain(f), help_map.(gens(K)))

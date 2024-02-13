@@ -267,7 +267,7 @@ function base_change(phi::Any, X::AbsSpec)
   R_red, Phi = _change_base_ring(phi, R)
   #@assert _has_coefficient_map(Phi)
   Y = Spec(R_red)
-  return Y, morphism(Y, X, Phi)
+  return Y, morphism(Y, X, Phi; check=false)
 end
 
 ### Some helper functions

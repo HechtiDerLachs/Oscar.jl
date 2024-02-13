@@ -161,7 +161,7 @@ function base_change(phi::Any, f::AbsCoveredSchemeMorphism;
   Y = codomain(f)
   XX = domain(domain_map)
   YY = domain(codomain_map)
-  return domain_map, CoveredSchemeMorphism(XX, YY, ff_cov_map), codomain_map
+  return domain_map, CoveredSchemeMorphism(XX, YY, ff_cov_map; check=false), codomain_map
 end
 
 function _register_birationality!(f::AbsCoveredSchemeMorphism, 
@@ -259,8 +259,8 @@ function fiber_product(f::AbsCoveredSchemeMorphism, g::AbsCoveredSchemeMorphism)
     # The easy case.
     AxB, to_A, to_B = fiber_product(f_cov, g_cov)
     XxY = CoveredScheme(AxB)
-    to_X = CoveredSchemeMorphism(XxY, X, to_A)
-    to_Y = CoveredSchemeMorphism(XxY, Y, to_B)
+    to_X = CoveredSchemeMorphism(XxY, X, to_A; check=false)
+    to_Y = CoveredSchemeMorphism(XxY, Y, to_B; check=false)
     return XxY, to_X, to_Y
   elseif is_refinement(CA, CB)[1]
     # We have to complete the square
@@ -277,8 +277,8 @@ function fiber_product(f::AbsCoveredSchemeMorphism, g::AbsCoveredSchemeMorphism)
     f_cov_inc = compose(f_cov, inc)
     AxB, to_A, to_B = fiber_product(f_cov_inc, g_cov)
     XxY = CoveredScheme(AxB)
-    to_X = CoveredSchemeMorphism(XxY, X, to_A)
-    to_Y = CoveredSchemeMorphism(XxY, Y, to_B)
+    to_X = CoveredSchemeMorphism(XxY, X, to_A; check=false)
+    to_Y = CoveredSchemeMorphism(XxY, Y, to_B; check=false)
     return XxY, to_X, to_Y
   elseif is_refinement(CB, CA)[1]
     # Similar to the above case
@@ -286,8 +286,8 @@ function fiber_product(f::AbsCoveredSchemeMorphism, g::AbsCoveredSchemeMorphism)
     g_cov_inc = compose(g_cov, inc)
     AxB, to_A, to_B = fiber_product(f_cov, g_cov_inc)
     XxY = CoveredScheme(AxB)
-    to_X = CoveredSchemeMorphism(XxY, X, to_A)
-    to_Y = CoveredSchemeMorphism(XxY, Y, to_B)
+    to_X = CoveredSchemeMorphism(XxY, X, to_A; check=false)
+    to_Y = CoveredSchemeMorphism(XxY, Y, to_B; check=false)
     return XxY, to_X, to_Y
   else
     # In this case we complete the following square
@@ -316,8 +316,8 @@ function fiber_product(f::AbsCoveredSchemeMorphism, g::AbsCoveredSchemeMorphism)
     BB, BB_to_B, BB_to_CAB = fiber_product(g_cov, to_CB)
     AAxBB, to_AA, to_BB = fiber_product(AA_to_CAB, BB_to_CAB)
     XxY = CoveredScheme(AAxBB)
-    to_X = CoveredSchemeMorphism(XxY, X, compose(to_AA, AA_to_A))
-    to_Y = CoveredSchemeMorphism(XxY, Y, compose(to_BB, BB_to_B))
+    to_X = CoveredSchemeMorphism(XxY, X, compose(to_AA, AA_to_A); check=false)
+    to_Y = CoveredSchemeMorphism(XxY, Y, compose(to_BB, BB_to_B); check=false)
     return XxY, to_X, to_Y
   end
 end
