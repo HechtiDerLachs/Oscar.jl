@@ -521,6 +521,8 @@ ideal(y)
 """
 function quotient(a::MPolyQuoIdeal{T}, b::MPolyQuoIdeal{T}) where T
   @req base_ring(a) == base_ring(b) "base rings must match"
+  A = base_ring(a)
+  return ideal(A, gens(quotient(saturated_ideal(a), saturated_ideal(b))))
   return MPolyQuoIdeal(base_ring(a), Singular.quotient(singular_generators(a.gens), singular_generators(b.gens)))
 end
 (::Colon)(a::MPolyQuoIdeal, b::MPolyQuoIdeal) = quotient(a, b)
