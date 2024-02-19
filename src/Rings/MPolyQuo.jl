@@ -1803,7 +1803,7 @@ function small_generating_set(I::MPolyQuoIdeal)
 
   @req coefficient_ring(Q) isa Field "The coefficient ring must be a field"
 
-  return Q.(small_generating_set(saturated_ideal(I)))
+  return filter(!is_zero, Q.(small_generating_set(saturated_ideal(I))))
 
   # in the ungraded case, mstd's heuristic returns smaller gens when recomputing gb
   sing_gb, sing_min = Singular.mstd(singular_generators(I.gens))
