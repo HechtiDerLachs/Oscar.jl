@@ -216,8 +216,8 @@ function _restrict_codomain(f::AbsSpecMor, D::PrincipalOpenSubset; check::Bool=t
 end
 
 function _restrict_codomain(f::AbsSpecMor, D::AbsSpec; check::Bool=true)
-  @check is_subset(D, codomain(f)) "codomain incompatible"
-  @check is_subset(domain(f), preimage(f, D))
+  @check is_subscheme(D, codomain(f)) "codomain incompatible"
+  @check is_subscheme(domain(f), preimage(f, D)) "new domain is not contained in preimage of codomain"
   !_has_coefficient_map(pullback(f)) && return morphism(domain(f), D, OO(domain(f)).(pullback(f).(gens(OO(codomain(f))))), check=check)
   return morphism(domain(f), D, coefficient_map(pullback(f)), [OO(domain(f))(x; check) for x in pullback(f).(gens(OO(codomain(f))))], check=check)
 end
