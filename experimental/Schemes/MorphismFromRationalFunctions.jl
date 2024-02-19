@@ -170,6 +170,7 @@ function realize_on_patch(Phi::MorphismFromRationalFunctions, U::AbsSpec)
   if haskey(realizations(Phi), U)
     return realizations(Phi)[U]
   end
+  println("################################################### realizing on $U")
   X = domain(Phi)
   Y = codomain(Phi)
   V = codomain_chart(Phi)
@@ -179,17 +180,17 @@ function realize_on_patch(Phi::MorphismFromRationalFunctions, U::AbsSpec)
   # `affine_chart` of the codomain of Phi.
   covered_codomain_patches = Vector{AbsSpec}([V])
   complement_equations = Vector{elem_type(OO(U))}()
-  FY = function_field(Y, check=false)
-  FX = function_field(X, check=false)
+  FY = function_field(Y, check=Phi.run_internal_checks)
+  FX = function_field(X, check=Phi.run_internal_checks)
   A = [FX(a) for a in coordinate_images(Phi)]
   a = [b[U] for b in A]
   #a = [lift(simplify(OO(U)(numerator(b))))//lift(simplify(OO(U)(denominator(b)))) for b in a]
   list_for_V = _extend(U, a)
-  Psi = [morphism(W, ambient_space(V), b, check=false) for (W, b) in list_for_V]
+  Psi = [morphism(W, ambient_space(V), b, check=Phi.run_internal_checks) for (W, b) in list_for_V]
   # Up to now we have maps to the ambient space of V. 
   # But V might be a hypersurface complement in there and we 
   # might need to restrict our domain of definition accordingly. 
-  Psi_res = [_restrict_properly(psi, V) for psi in Psi]
+  Psi_res = [_restrict_properly(psi, V; check=Phi.run_internal_checks) for psi in Psi]
   @assert all(phi->codomain(phi) === V, Psi_res)
   append!(complement_equations, [OO(U)(lifted_numerator(complement_equation(domain(psi)))) for psi in Psi_res])
   while !isone(ideal(OO(U), complement_equations))
@@ -210,9 +211,16 @@ function realize_on_patch(Phi::MorphismFromRationalFunctions, U::AbsSpec)
     total_rat_lift = [evaluate(a, rat_lift_y0) for a in rat_lift_y1]
     #total_rat_lift = [lift(simplify(OO(U)(numerator(b))))//lift(simplify(OO(U)(denominator(b)))) for b in total_rat_lift]
     list_for_V_next = _extend(U, total_rat_lift)
-    Psi = [morphism(W, ambient_space(V_next), b, check=false) for (W, b) in list_for_V_next]
-    Psi = [_restrict_properly(psi, V_next) for psi in Psi]
+    Psi = [morphism(W, ambient_space(V_next), b, check=Phi.run_internal_checks) for (W, b) in list_for_V_next]
+    Psi = [_restrict_properly(psi, V_next; check=Phi.run_internal_checks) for psi in Psi]
     append!(Psi_res, Psi)
+    println("#################")
+    for m in Psi_res
+      @show domain(m)
+      @show codomain(m)
+      @show pullback(m).(gens(OO(codomain(m))))
+      println("---")
+    end
     append!(complement_equations, [OO(U)(lifted_numerator(complement_equation(domain(psi)))) for psi in Psi])
     push!(covered_codomain_patches, V_next)
   end
@@ -247,8 +255,8 @@ function realize_on_open_subset(Phi::MorphismFromRationalFunctions, U::AbsSpec, 
   dens = [denominator(a) for a in img_gens_frac]
   U_sub = PrincipalOpenSubset(U, OO(U).(dens))
   img_gens = [OO(U_sub)(numerator(a), denominator(a)) for a in img_gens_frac]
-  prelim = morphism(U_sub, ambient_space(V), img_gens, check=false) # TODO: Set to false
-  return _restrict_properly(prelim, V)
+  prelim = morphism(U_sub, ambient_space(V), img_gens, check=Phi.run_internal_checks) # TODO: Set to false
+  return _restrict_properly(prelim, V; check=Phi.run_internal_checks)
 end
 
 @doc raw"""
@@ -358,8 +366,8 @@ function realize_maximally_on_open_subset(Phi::MorphismFromRationalFunctions, U:
   extensions = _extend(U, img_gens_frac)
   result = AbsSpecMor[]
   for (U, g) in extensions
-    prelim = morphism(U, ambient_space(V), g, check=false)
-    push!(result, _restrict_properly(prelim, V))
+    prelim = morphism(U, ambient_space(V), g, check=Phi.run_internal_checks)
+    push!(result, _restrict_properly(prelim, V; check=Phi.run_internal_checks))
   end
   maximal_extensions(Phi)[(U, V)] = result
   return result
@@ -489,6 +497,7 @@ function _extend(U::AbsSpec, a::Vector{<:FieldElem})
   result = Vector{Tuple{AbsSpec, Vector{RingElem}}}()
 
   for g in small_generating_set(I_undef)
+    is_zero(g) && error("generator must not be zero")
     Ug = PrincipalOpenSubset(U, g)
     b = [convert(OO(Ug), numerator(f)//denominator(f)) for f in a]
     #b = [divides(OO(Ug)(numerator(f)), OO(Ug)(denominator(f)))[2] for f in a]
@@ -523,6 +532,8 @@ function _find_good_neighboring_patch(cov::Covering, covered::Vector{<:AbsSpec})
   if !isempty(good_neighbors)
     return first(good_neighbors)
   end
+  @show length(patches(cov))
+  @show length(covered)
   isempty(U) && error("no new neighbor could be found")
   return first(U), first(covered)
 end
@@ -531,16 +542,17 @@ end
 # as regular functions on U' and a morphism U' → A to the `ambient_space` 
 # of V can be realized, V might be so small that we need a proper restriction 
 # of the domain. The methods below take care of that. 
-function _restrict_properly(f::AbsSpecMor, V::AbsSpec{<:Ring, <:MPolyRing})
-  return restrict(f, domain(f), V, check=false)
+function _restrict_properly(f::AbsSpecMor, V::AbsSpec{<:Ring, <:MPolyRing}; check::Bool=true)
+  return restrict(f, domain(f), V; check)
 end
 
-function _restrict_properly(f::AbsSpecMor, V::AbsSpec{<:Ring, <:MPolyQuoRing})
-  return restrict(f, domain(f), V, check=false)
+function _restrict_properly(f::AbsSpecMor, V::AbsSpec{<:Ring, <:MPolyQuoRing}; check::Bool=true)
+  return restrict(f, domain(f), V; check)
 end
 
 function _restrict_properly(
-    f::AbsSpecMor{<:PrincipalOpenSubset}, V::AbsSpec{<:Ring, <:RT}
+    f::AbsSpecMor{<:PrincipalOpenSubset}, V::AbsSpec{<:Ring, <:RT};
+    check::Bool=true
   ) where {RT<:MPolyLocRing{<:Ring, <:RingElem, 
                             <:MPolyRing, <:MPolyRingElem, 
                             <:MPolyPowersOfElement}
@@ -550,11 +562,12 @@ function _restrict_properly(
   U = domain(f)
   W = ambient_scheme(U)
   UU = PrincipalOpenSubset(W, push!(OO(W).(lifted_numerator.(pbh)), complement_equation(U)))
-  return restrict(f, UU, V, check=false)
+  return restrict(f, UU, V; check)
 end
 
 function _restrict_properly(
-    f::AbsSpecMor{<:PrincipalOpenSubset}, V::AbsSpec{<:Ring, <:RT}
+    f::AbsSpecMor{<:PrincipalOpenSubset}, V::AbsSpec{<:Ring, <:RT};
+    check::Bool=true
   ) where {RT<:MPolyQuoLocRing{<:Ring, <:RingElem, 
                             <:MPolyRing, <:MPolyRingElem, 
                             <:MPolyPowersOfElement}
@@ -564,7 +577,7 @@ function _restrict_properly(
   U = domain(f)
   W = ambient_scheme(U)
   UU = PrincipalOpenSubset(W, push!(OO(W).(lifted_numerator.(pbh)), complement_equation(U)))
-  return restrict(f, UU, V, check=false)
+  return restrict(f, UU, V; check)
 end
 
 ### The natural mathematical way to deal with algebraic cycles. However, since 
@@ -598,7 +611,7 @@ function pushforward(Phi::MorphismFromRationalFunctions, D::AbsAlgebraicCycle)
     V = codomain(phi)
     pb = pullback(phi)
     Q, pr = quo(OO(U), I(U))
-    J = kernel(hom(OO(V), Q, compose(pb, pr).(gens(OO(V))), check=false))
+    J = kernel(hom(OO(V), Q, compose(pb, pr).(gens(OO(V))), check=Phi.run_internal_checks))
     # If this map is contracting the component, skip
     dim(I(U)) == dim(J) || continue
     JJ = IdealSheaf(Y, V, gens(J))
@@ -783,5 +796,31 @@ function _pullback(phi::MorphismFromRationalFunctions, I::IdealSheaf)
 end
 
 function pullback(phi::MorphismFromRationalFunctions, D::WeilDivisor)
-  return WeilDivisor(pullback(phi)(underlying_cycle(D)), check=false) 
+  return WeilDivisor(pullback(phi)(underlying_cycle(D)), check=phi.run_internal_checks) 
 end
+
+function _match_divisors(new_div::Vector, old_div::Vector)
+  m = length(new_div)
+  n = length(old_div)
+  result = zero_matrix(ZZ, m, n)
+  for (i, d) in enumerate(new_div)
+    @show i
+    found = false
+    for (k, e) in enumerate(old_div)
+      @show k
+      if d == e
+        result[i, k] = one(ZZ)
+        found = true
+        break
+      end
+    end
+    println("not found")
+    found && continue
+    for (k, e) in enumerate(old_div)
+      @show k
+      result[i, k] = ZZ(intersect(d, e))
+    end
+  end
+  return result
+end
+
