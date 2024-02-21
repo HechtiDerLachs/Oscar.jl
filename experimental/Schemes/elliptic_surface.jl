@@ -546,7 +546,7 @@ function weierstrass_contraction(X::EllipticSurface)
       #inherit_decomposition_info!(cov, X0)
     end
     # take the first singular point and blow it up
-    J = radical(I_sing_X0[1]) # radical to have small number of generators
+    J = simplify!(I_sing_X0[1], cov)
     pr_X1 = blow_up(J, covering=cov, var_name=varnames[1+mod(count, length(varnames))])
 
     # Set the attribute so that the strict_transform does some extra work
@@ -1495,6 +1495,9 @@ function transform_to_weierstrass(g::MPolyRingElem, x::MPolyRingElem, y::MPolyRi
   R = parent(g)
   F = fraction_field(R)
 
+  @assert ngens(R) == 2 "input polynomial must be bivariate"
+  @assert x in gens(R) "second argument must be a variable of the parent of the first"
+  @assert y in gens(R) "third argument must be a variable of the parent of the first"
   # In case of variables in the wrong order, switch and transform the result.
   if x == R[2] && y == R[1]
     switch = hom(R, R, reverse(gens(R)))
@@ -1510,9 +1513,6 @@ function transform_to_weierstrass(g::MPolyRingElem, x::MPolyRingElem, y::MPolyRi
                            )
     return switch(g_trans), new_trans
   end
-  @assert ngens(R) == 2 "input polynomial must be bivariate"
-  @assert x in gens(R) "second argument must be a variable of the parent of the first"
-  @assert y in gens(R) "third argument must be a variable of the parent of the first"
 
   kk = coefficient_ring(R)
   kkx, X = polynomial_ring(kk, :x, cached=false)
