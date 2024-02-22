@@ -388,6 +388,11 @@ function _separate_singularities!(X::EllipticSurface)
     # there is at most one singularity in every fiber
     # project the singular locus to an affine chart of P1
     disc = gens(eliminate(IsingU, coordinates(U)[1:2]))[1]
+    if is_zero(disc)
+      @show IsingU
+      @show gens(IsingU)
+      error("discriminant was zero")
+    end
     # The t-coordinates of the reducible fibers
     redfib = [f[1] for f in factor(disc)]
     # One chart with all reducible fibers taken out
@@ -546,7 +551,7 @@ function weierstrass_contraction(X::EllipticSurface)
       #inherit_decomposition_info!(cov, X0)
     end
     # take the first singular point and blow it up
-    J = simplify!(I_sing_X0[1], cov)
+    J = simplify(I_sing_X0[1], cov)
     pr_X1 = blow_up(J, covering=cov, var_name=varnames[1+mod(count, length(varnames))])
 
     # Set the attribute so that the strict_transform does some extra work

@@ -287,6 +287,17 @@ function simplify!(I::IdealSheaf, cov::Covering=default_covering(space(I)))
   return I
 end
 
+@doc raw"""
+    simplify(I::IdealSheaf)
+
+Replaces the set of generators of the ideal sheaf by a minimal 
+set of random linear combinations in every affine patch. 
+"""
+function simplify(I::IdealSheaf, cov::Covering=default_covering(scheme(I)))
+  id_dict = IdDict{AbsSpec, Ideal}(U => ideal(OO(U), small_generating_set(I(U))) for U in patches(cov))
+  return IdealSheaf(scheme(I), id_dict; check=false)
+end
+
 @doc """
     subscheme(I::IdealSheaf) 
 
