@@ -424,7 +424,7 @@ function colength(I::AbsIdealSheaf; covering::Covering=default_covering(scheme(I
     J_cheap = cheap_sub_ideal(I, U)
     if has_decomposition_info(covering)
       h = decomposition_info(covering)[U]
-      isone(J_cheap + ideal(OO(U), h)) && break
+      isone(J_cheap + ideal(OO(U), OO(U).(h))) && break
     end
 
     J = I(U)
