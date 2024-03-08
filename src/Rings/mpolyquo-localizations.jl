@@ -1885,9 +1885,14 @@ end
 ### Some auxiliary functions
 
 @attr MPolyQuoLocalizedIdeal function radical(I::MPolyQuoLocalizedIdeal)
-  W = base_ring(I)
-  J = pre_image_ideal(I)
-  return ideal(W, [g for g in W.(gens(radical(J))) if !iszero(g)])
+  has_attribute(I, :is_prime) && get_attribute(I, :is_prime) && return I
+  has_attribute(I, :is_radical) && get_attribute(I, :is_radical) && return I
+  R = base_ring(I)
+  R_simp, iso, iso_inv = simplify(R) # This usually does not cost much
+  I_simp = ideal(R_simp, restricted_map(iso).(lifted_numerator.(gens(I))))
+  J = pre_image_ideal(I_simp)
+  pre_result = ideal(R_simp, [g for g in R_simp.(gens(radical(J))) if !iszero(g)])
+  return ideal(R, restricted_map(iso_inv).(lifted_numerator.(gens(pre_result))))
 end
 
 @attr function dim(I::MPolyQuoLocalizedIdeal)
@@ -2154,6 +2159,38 @@ end
 
 function (W::MPolyDecRing)(f::MPolyLocRingElem)
   return W(forget_decoration(W)(f))
+end
+
+@attr Tuple{<:Map, <:Map} function _as_affine_algebra_with_many_variables(
+    L::MPolyLocRing{<:Any, <:Any, <:Any, <:Any, <:MPolyPowersOfElement}
+  )
+  inverse_name=:_0
+  R = base_ring(L)
+  f = denominators(inverted_set(L))
+  f = sort(f, lt=(x, y)->total_degree(x)>total_degree(y))
+  r = length(f)
+  A, phi, t = _add_variables_first(R, [Symbol(String(inverse_name)*"$k") for k in 1:r])
+  theta = t[1:r]
+  I = ideal(A, [one(A)-theta[k]*phi(f[k]) for k in 1:r])
+  ordering = degrevlex(gens(A)[r+1:end])
+  if r > 0 
+    ordering = deglex(theta)*ordering
+  end
+  Q = MPolyQuoRing(A, I, ordering)
+  function my_fun(g)
+    a = Q(phi(lifted_numerator(g)))
+    isone(lifted_denominator(g)) && return a
+    b = Q(phi(lifted_denominator(g)))
+    success, c = divides(a, b)
+    success || error("element can not be mapped")
+    return c
+  end
+  id = MapFromFunc(L, Q, my_fun)
+  #id = hom(L, Q, gens(A)[r+1:end], check=false)
+  id_inv = hom(Q, L, vcat([L(one(R), b, check=false) for b in f], gens(L)), check=false)
+  set_attribute!(id, :inverse, id_inv)
+  set_attribute!(id_inv, :inverse, id)
+  return id, id_inv
 end
 
 @attr Tuple{<:Map, <:Map} function _as_affine_algebra_with_many_variables(

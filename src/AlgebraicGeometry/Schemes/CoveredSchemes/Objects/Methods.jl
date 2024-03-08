@@ -153,5 +153,5 @@ function base_change(phi::Any, X::AbsCoveredScheme)
   C = default_covering(X)
   CC, f_CC = base_change(phi, C)
   XX = CoveredScheme(CC)
-  return XX, CoveredSchemeMorphism(XX, X, f_CC)
+  return XX, CoveredSchemeMorphism(XX, X, f_CC; check=false)
 end

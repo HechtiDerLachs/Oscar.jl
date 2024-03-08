@@ -62,19 +62,29 @@ function set_mordell_weil_basis!(X::EllipticSurface, mwl_basis::Vector{<:Ellipti
   X.MWL = mwl_basis
   # clear old computations
   if has_attribute(X, :algebraic_lattice)
-    deleteat!(X.__attrs, :algebraic_lattice)
+    delete!(X.__attrs, :algebraic_lattice)
   end
   if has_attribute(X, :mordell_weil_lattice)
-    deleteat!(X.__attrs, :mordell_weil_lattice)
+    delete!(X.__attrs, :mordell_weil_lattice)
   end
 end
 
 @doc raw"""
-    elliptic_surface(generic_fiber::EllipticCurve, euler_characteristic::Int, mwl_basis::Vector{<:EllipticCurvePoint}=EllipticCurvePoint[]) -> EllipticSurface
+    elliptic_surface(generic_fiber::EllipticCurve,
+    euler_characteristic::Int, mwl_gens::Vector{<:EllipticCurvePoint}=EllipticCurvePoint[];
+    is_basis::Bool=true)
+    -> EllipticSurface
 
 Return the relatively minimal elliptic surface with generic fiber ``E/k(t)``.
 
 This is also known as the Kodaira-Néron model of ``E``.
+
+Input:
+- `generic_fiber` -- an elliptic curve over a function field
+- `euler_characteristic` -- the Euler characteristic of the Kodaira-Néron model of ``E``.
+- `mwl_gens` -- a vector of rational points of the generic fiber
+- `is_basis` -- if set to `false` compute an LLL-reduced basis from `mwl_gens`
+
 
 # Examples
 ```jldoctest
@@ -95,10 +105,15 @@ Elliptic surface with generic fiber -x^3 + y^2 - t^7 + 2*t^6 - t^5
 ```
 """
 function elliptic_surface(generic_fiber::EllipticCurve{BaseField}, euler_characteristic::Int,
-                          mwl_basis::Vector{<:EllipticCurvePoint}=EllipticCurvePoint[]) where {
+                          mwl_gens::Vector{<:EllipticCurvePoint}=EllipticCurvePoint[];is_basis::Bool=true) where {
                           BaseField <: FracFieldElem{<:PolyRingElem{<:FieldElem}}}
-  @req all(parent(i)==generic_fiber for i in mwl_basis) "not a vector of points on $(generic_fiber)"
-  S = EllipticSurface(generic_fiber, euler_characteristic, mwl_basis)
+  @req all(parent(i)==generic_fiber for i in mwl_gens) "not a vector of points on $(generic_fiber)"
+  S = EllipticSurface(generic_fiber, euler_characteristic, mwl_gens)
+  if is_basis
+    return S
+  end
+  mwl, mwl_basis = _compute_mwl_basis(S, mwl_gens)
+  set_mordell_weil_basis!(S, mwl_basis)
   return S
 end
 
@@ -157,8 +172,11 @@ The first return value is the basis of the ambient space of `L`.
 The second consists of additional generators for `L` coming from torsion sections.
 The third is ``L``.
 """
-@attr function algebraic_lattice(X)
-  mwl_basis = X.MWL
+@attr function algebraic_lattice(X::EllipticSurface)
+  return _algebraic_lattice(X,X.MWL)
+end
+
+function _algebraic_lattice(X::EllipticSurface, mwl_basis::Vector{<:EllipticCurvePoint})
   basisTriv, GTriv = trivial_lattice(X)
   r = length(basisTriv)
   l = length(mwl_basis)
@@ -188,13 +206,13 @@ The third is ``L``.
       GA[j,i] = GA[i,j]
     end
   end
-  GAinv = inv(change_base_ring(QQ,GA))
+  GA_QQ = change_base_ring(QQ,GA)
   # primitive closure of the trivial lattice comes from torsion sections
   tors = [section(X, h) for h in mordell_weil_torsion(X)]
   torsV = QQMatrix[]
   for T in tors
     @vprint :EllipticSurface 2 "computing basis representation of $(T)\n"
-    vT = zero_matrix(ZZ, 1, n)
+    vT = zero_matrix(QQ, 1, n)
     for i in 1:r
       if i== 2
         vT[1,i] = intersect(basisA[i], T)
@@ -211,7 +229,7 @@ The third is ``L``.
     for i in r+1:n
       vT[1,i] = intersect(T,basisA[i])
     end
-    push!(torsV, vT*GAinv) # not necessarily integral .... todo
+    push!(torsV, solve(GA_QQ,vT, side=:left))
   end
   gen_tors = zip(tors, torsV)
   push!(torsV, identity_matrix(QQ,n))
@@ -225,6 +243,9 @@ end
 
 Return the (sublattice) of the Mordell-Weil lattice of ``S``  spanned
 by the sections of ``S`` supplied at its construction.
+
+The Mordell Weil-Lattice is represented in the same vector space as the
+algebraic lattice (with quadratic form rescaled by ``-1``).
 """
 @attr ZZLat function mordell_weil_lattice(S::EllipticSurface)
   NS = algebraic_lattice(S)[3]
@@ -233,9 +254,8 @@ by the sections of ``S`` supplied at its construction.
   R = basis_matrix(NS)[t+1:end,:]
   V = ambient_space(NS)
   P = orthogonal_projection(V, trivNS)
-  mwl = rescale(P(NS),-1)
-  #Todo basis
-  return lll(mwl)
+  mwl = rescale(lattice(V,R*P.matrix),-1)
+  return mwl
 end
 
 @doc raw"""
@@ -778,7 +798,7 @@ Return the fiber of $\pi\colon X \to C$ over $P\in C$ as a Cartier divisor.
 function fiber_cartier(S::EllipticSurface, P::Vector = ZZ.([0,1]))
   S0,_ = weierstrass_model(S)
   underlying_scheme(S) # cache stuff
-  D = IdDict{AbsAffineScheme, RingElem}()
+  D = IdDict{AbsSpec, RingElem}()
   k = base_ring(S0)
   P = k.(P)
 
@@ -1207,15 +1227,15 @@ function horizontal_decomposition(X::EllipticSurface, F::Vector{QQFieldElem})
   @vprint :EllipticSurface 2 "Computing basis representation of $(P0)\n"
   p0 = basis_representation(X, P0_div) # this could be done from theory alone
   F1 = F - p0  # should be contained in the QQ-trivial-lattice
-  F2 = F1
   if all(isone(denominator(i)) for i in F1)
     # no torsion
     P = P0
     P_div = P0_div
+    F2 = F1
   else
     found = false
     for (i,(T, tor)) in enumerate(tors)
-      d = F2 - _vec(tor)
+      d = F2-vec(tor)
       if all(isone(denominator(i)) for i in d)
         found = true
         T0 = mordell_weil_torsion(X)[i]
@@ -1226,9 +1246,10 @@ function horizontal_decomposition(X::EllipticSurface, F::Vector{QQFieldElem})
     @assert found
     P_div = section(X, P)
     p = basis_representation(X, P_div)
-    F2 = F1 - p
+    F2 = F - p
     @assert all( isone(denominator(i)) for i in F2)
   end
+  @vprint :EllipticSurface 4 "F2 = $(F2)\n"
   D = P_div
   D = D + ZZ(F2[2])*zero_section(X)
   D1 = D
@@ -1250,7 +1271,7 @@ function horizontal_decomposition(X::EllipticSurface, F::Vector{QQFieldElem})
         end
       end
     end
-    f0 = f0 * inv(gram_matrix(ambient_space(NS)))
+    f0 = ZZ.(f0 * inv(gram_matrix(ambient_space(NS))))
     @assert inner_product(ambient_space(NS), f0,f0) == -2
     nonzero = [i for i in 3:rk_triv if f0[i]!=0]
     if pt[2]==0 # at infinity
@@ -1263,7 +1284,6 @@ function horizontal_decomposition(X::EllipticSurface, F::Vector{QQFieldElem})
       D = D + Fib0
       D1 = D1 + fiber
       c = c*t0
-      @assert F3[1]>=0
     end
   end
   pt, _ = fiber(X)
@@ -1272,7 +1292,7 @@ function horizontal_decomposition(X::EllipticSurface, F::Vector{QQFieldElem})
   else
     t0 = t//(t*pt[2]-pt[1])
   end
-  c = c*t0^ZZ(F3[1])
+  c = c*(t0//1)^ZZ(F3[1])
   D = D + F3[1]*basisNS[1]
   D1 = D1 + F3[1]*basisNS[1]
   F4 = copy(F3); F4[1]=0
@@ -1313,11 +1333,9 @@ function _elliptic_parameter(X::EllipticSurface, D1::WeilDivisor, D::WeilDivisor
   LonX = linear_system(L, D1, check=false);
 
   LsubF, Tmat = subsystem(LonX, D);
-
   LsubFonS = [sum(Tmat[i,j]*L[j] for j in 1:ncols(Tmat)) for i in 1:nrows(Tmat)]
 
   @assert length(LsubFonS)==2
-
   u2 = LsubFonS[2]//LsubFonS[1]
   return u2
 end
@@ -1496,6 +1514,9 @@ function transform_to_weierstrass(g::MPolyRingElem, x::MPolyRingElem, y::MPolyRi
   R = parent(g)
   F = fraction_field(R)
 
+  @assert ngens(R) == 2 "input polynomial must be bivariate"
+  @assert x in gens(R) "second argument must be a variable of the parent of the first"
+  @assert y in gens(R) "third argument must be a variable of the parent of the first"
   # In case of variables in the wrong order, switch and transform the result.
   if x == R[2] && y == R[1]
     switch = hom(R, R, reverse(gens(R)))
@@ -1503,7 +1524,7 @@ function transform_to_weierstrass(g::MPolyRingElem, x::MPolyRingElem, y::MPolyRi
     new_trans = MapFromFunc(F, F, f->begin
                                 switch_num = switch(numerator(f))
                                 switch_den = switch(denominator(f))
-                                interm_res = trans(F(switch_num))//trans(F(switch(den)))
+                                interm_res = trans(F(switch_num))//trans(F(switch_den))
                                 num = numerator(interm_res)
                                 den = denominator(interm_res)
                                 switch(num)//switch(den)
@@ -1511,9 +1532,6 @@ function transform_to_weierstrass(g::MPolyRingElem, x::MPolyRingElem, y::MPolyRi
                            )
     return switch(g_trans), new_trans
   end
-  @assert ngens(R) == 2 "input polynomial must be bivariate"
-  @assert x in gens(R) "second argument must be a variable of the parent of the first"
-  @assert y in gens(R) "third argument must be a variable of the parent of the first"
 
   kk = coefficient_ring(R)
   kkx, X = polynomial_ring(kk, :x, cached=false)
@@ -1691,7 +1709,7 @@ function _elliptic_parameter_conversion(X::EllipticSurface, u::VarietyFunctionFi
     phi = hom(R, FS, FS.([(t2 - a_t)//b_t, y2, x2]))
     f_trans = phi(f_loc)
     return numerator(f_trans), phi
-  elseif case == :case2
+  elseif case == :old
     # D = O + P
     @assert degree(u_num, 2) == 1 && degree(u_num, 1) <= 1 "numerator does not have the correct degree"
     @assert degree(u_den, 1) == 1 && degree(u_den, 2) == 0 "denominator does not have the correct degree"
@@ -1717,7 +1735,7 @@ function _elliptic_parameter_conversion(X::EllipticSurface, u::VarietyFunctionFi
     eqn1 = numerator(f_trans)
     # According to 
     #   A. Kumar: "Elliptic Fibrations on a generic Jacobian Kummer surface" 
-    # p. 45, l. 1 we expect the following cancelation to be possible:
+    # p. 45, l. 1 we expect the following cancellation to be possible:
     divisor_num = evaluate(numerator(x0), x2)
     divisor_den = evaluate(denominator(x0), x2)
     divisor = divisor_den * y2 - divisor_num
@@ -1746,11 +1764,95 @@ function _elliptic_parameter_conversion(X::EllipticSurface, u::VarietyFunctionFi
     eqn1 = numerator(f_trans)
     # According to 
     #   A. Kumar: "Elliptic Fibrations on a generic Jacobian Kummer surface" 
-    # p. 45, l. 15 we expect the following cancelation to be possible:
+    # p. 45, l. 15 we expect the following cancellation to be possible:
     success, eqn1 = divides(eqn1, y2)
     @assert success "equation did not come out in the anticipated form"
     return eqn1, phi
-  else 
+  elseif case == :case2
+    # D = O + P
+    @assert degree(u_num, 2) == 1 && degree(u_num, 1) <= 1 "numerator does not have the correct degree"
+    @assert degree(u_den, 1) == 1 && degree(u_den, 2) <= 1 "denominator does not have the correct degree"
+
+    # u = (ax + by + c)/(a'x + b'y + c')
+    an = my_const(coeff(u_num, [xx, yy], [1, 0]))
+    bn = my_const(coeff(u_num, [xx, yy], [0, 1]))
+    cn = my_const(coeff(u_num, [xx, yy], [0, 0]))
+
+    ad = my_const(coeff(u_den, [xx, yy], [1, 0]))
+    bd = my_const(coeff(u_den, [xx, yy], [0, 1]))
+    cd = my_const(coeff(u_den, [xx, yy], [0, 0]))
+
+    @assert (an*xx+bn*yy+cn)//(ad*xx+bd*yy+cd) == u_frac "decomposition failed"
+
+
+    v = solve(matrix(parent(an),2,2,[-an, bn,-ad, bd]), matrix(parent(an),2,1,[cn,cd]); side=:right)
+    x0 = v[1,1]
+    y0 = v[2,1]
+    @assert evaluate(f_loc,[x0,y0,gen(parent(x0))])==0
+
+    ad = evaluate(ad,x2)
+    an = evaluate(an,x2)
+    bd = evaluate(bd,x2)
+    bn = evaluate(bn,x2)
+    cn = evaluate(cn,x2)
+    cd = evaluate(cd,x2)
+    #x0 = evaluate(x0,x2)
+    #y0 = evaluate(y0,x2)
+
+
+    imgy = -FS(((ad*t2 - an )*y2 + (cd*t2 -cn)) //(bd*t2 -bn))
+
+    # We have
+    #
+    #   y ↦ -((ad u - an )x + (cd u -cn)) // (bd*u -bn)
+    #   x ↦ y₂
+    #   t ↦ x₂
+    phi = hom(R, FS, [y2, imgy, x2])
+    f_trans = phi(f_loc)
+    eqn1 = numerator(f_trans)
+    # According to
+    #   A. Kumar: "Elliptic Fibrations on a generic Jacobian Kummer surface"
+    # p. 45, l. 1 we expect the following cancellation to be possible:
+    divisor_num = evaluate(numerator(x0), x2)
+    divisor_den = evaluate(denominator(x0), x2)
+    divisor = divisor_den * y2 - divisor_num
+    success, eqn1 = divides(eqn1, divisor) # This division must only be possible in the ring K(x2)[y2].
+                                           # Hence, multiplying by the denominator `divisor_den` is
+                                           # merely an educated guess.
+    @assert success "division failed"
+    return eqn1, phi
+  else
     error("case not recognized")
   end
 end
+
+@doc raw"""
+    _compute_mwl_basis(X::EllipticSurface, mwl_gens::Vector{<:EllipticCurvePoint}) -> ZZLat, Vector{<:EllipticCurvePoint}
+
+Return a tuple `(M, B)` where  `B` is an LLL-reduced basis of the sublattice `M` of the
+Mordell-Weil lattice of ``X`` generated by `mwl_gens`.
+"""
+function _compute_mwl_basis(X::EllipticSurface, mwl_gens::Vector{<:EllipticCurvePoint})
+  # it would be good to have the height pairing implemented
+  basis,tors, SX = _algebraic_lattice(X, mwl_gens)
+  basisTriv, GTriv = trivial_lattice(X)
+  r = length(basisTriv)
+  l = length(mwl_gens)
+  V = ambient_space(SX)
+  rk = rank(V)
+  G = ZZ.(gram_matrix(V))
+  # project away from the trivial lattice
+  pr_mwl = orthogonal_projection(V,basis_matrix(SX)[1:r,:])
+  BMWL = pr_mwl.matrix[r+1:end,:]
+  GB = gram_matrix(V,BMWL)
+  @assert rank(GB) == rk-r
+  _, u = hnf_with_transform(ZZ.(denominator(GB)*GB))
+  B = u[1:rk-r,:]*BMWL
+
+  MWL = lll(lattice(V, B, isbasis=false))
+  u = solve(BMWL, basis_matrix(MWL); side=:left)
+  u = ZZ.(u)
+  mwl_basis = [sum(u[i,j]*mwl_gens[j] for j in 1:length(mwl_gens)) for i in 1:nrows(u)]
+  return MWL,mwl_basis
+end
+

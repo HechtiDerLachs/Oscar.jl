@@ -61,7 +61,7 @@ function IdealSheaf(X::AbsProjectiveScheme, I::MPolyIdeal)
   for U in patches(C)
     I[U] = ideal(OO(U), dehomogenization_map(X, U).(g))
   end
-  return IdealSheaf(X_covered, I, check=true)
+  return IdealSheaf(X_covered, I, check=false)
 end
 
 function IdealSheaf(X::AbsProjectiveScheme, I::MPolyQuoIdeal)
@@ -75,7 +75,7 @@ function IdealSheaf(X::AbsProjectiveScheme, I::MPolyQuoIdeal)
   for U in patches(C)
     I[U] = ideal(OO(U), dehomogenization_map(X, U).(g))
   end
-  return IdealSheaf(X_covered, I, check=true)
+  return IdealSheaf(X_covered, I, check=false)
 end
 
 ideal_sheaf(X::AbsProjectiveScheme, I::MPolyIdeal) = IdealSheaf(X, I)
@@ -300,31 +300,29 @@ end
 Replaces the set of generators of the ideal sheaf by a minimal
 set of random linear combinations in every affine patch.
 """
-function simplify!(I::AbsIdealSheaf)
-  new_ideal_dict = IdDict{AbsAffineScheme, Ideal}()
-  for U in basic_patches(default_covering(space(I)))
-    new_ideal_dict[U] = ideal(OO(U), small_generating_set(I(U)))
-    #=
-    n = ngens(I(U))
-    n == 0 && continue
-    R = ambient_coordinate_ring(U)
-    kk = coefficient_ring(R)
-    new_gens = elem_type(OO(U))[]
-    K = ideal(OO(U), new_gens)
-    while !issubset(I(U), K)
-      new_gen = dot([rand(kk, 1:100) for i in 1:n], gens(I(U)))
-      while new_gen in K
-        new_gen = dot([rand(kk, 1:100) for i in 1:n], gens(I(U)))
-      end
-      push!(new_gens, new_gen)
-      K = ideal(OO(U), new_gens)
-    end
-    Oscar.object_cache(underlying_presheaf(I))[U] = K
-    =#
+function simplify!(I::IdealSheaf, cov::Covering=default_covering(space(I)))
+  object_cache = I.I.obj_cache
+
+  for U in basic_patches(cov)
+    #if !any(U===i for i in keys(object_cache))
+    #  continue
+    #end
+    object_cache[U] = ideal(OO(U), small_generating_set(I(U)))
   end
   I.I.obj_cache = new_ideal_dict # for some reason the line below led to compiler errors.
   #Oscar.object_cache(underlying_presheaf(I)) = new_ideal_dict
   return I
+end
+
+@doc raw"""
+    simplify(I::IdealSheaf)
+
+Replaces the set of generators of the ideal sheaf by a minimal 
+set of random linear combinations in every affine patch. 
+"""
+function simplify(I::IdealSheaf, cov::Covering=default_covering(scheme(I)))
+  id_dict = IdDict{AbsSpec, Ideal}(U => ideal(OO(U), small_generating_set(I(U))) for U in patches(cov))
+  return IdealSheaf(scheme(I), id_dict; check=false)
 end
 
 @doc """
@@ -359,7 +357,11 @@ function subscheme(I::AbsIdealSheaf)
     for k in 1:length(new_patches)
       U = new_patches[k]
       V = basic_patches(C)[k]
-      set_decomposition_info!(Cnew, U, elem_type(OO(U))[OO(U)(a, check=false) for a in decomposition_info(C)[V]])
+      if !isempty(decomposition_info(C)[V])
+        set_decomposition_info!(Cnew, U, elem_type(OO(U))[OO(U)(a, check=false) for a in decomposition_info(C)[V]])
+      else
+        set_decomposition_info!(Cnew, U, elem_type(OO(U))[])
+      end
     end
   end
   return CoveredScheme(Cnew)
@@ -809,7 +811,9 @@ function maximal_associated_points(I::AbsIdealSheaf; covering=default_covering(s
       isone(J) && continue
     end
     !is_one(I(U)) || continue                        ## supp(I) might not meet all components
+    dim(I(U)) == dim(I) || continue                  ## components of lesser dimension can be discarded
     components_here = minimal_primes(I(U))
+    @assert all(p->dim(p) == dim(I), components_here) "not all minimal primes have the correct dimension"
     if has_decomposition_info(covering)
       # We only need those components which are located at the locus presrcibed by the
       # decomposition_info in this chart

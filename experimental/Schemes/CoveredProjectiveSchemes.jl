@@ -31,27 +31,27 @@ gluing_morphisms(PG::AbsProjectiveGluing) = gluing_morphisms(underlying_gluing(P
       X::AbsProjectiveScheme,
       Y::AbsProjectiveScheme,
       BG::AbsGluing,
-      compute_function::Function,
+      compute_function::Function, 
       gluing_data
     )
 
 Produce a container `pg` to host a non-computed `ProjectiveGluing` of ``X`` with ``Y``.
 
-The arguments consist of
+The arguments consist of 
 
  * the patches ``X`` and ``Y`` to be glued;
- * a gluing `BG` of the `base_scheme`s of ``X`` and ``Y`` over which the
+ * a gluing `BG` of the `base_scheme`s of ``X`` and ``Y`` over which the 
    `ProjectiveGluing` to be computed sits;
- * a function `compute_function` which takes a single argument `gluing_data`
-   of arbitrary type and actually carries out the computation;
- * an arbitrary struct `gluing_data` that the user can fill with whatever
-   information is needed to properly feed their `compute_function`.
+ * a function `compute_function` which takes a single argument `gluing_data` 
+   of arbitrary type and actually carries out the computation; 
+ * an arbitrary struct `gluing_data` that the user can fill with whatever 
+   information is needed to properly feed their `compute_function`. 
 
-The container `pg` can then be stored as the gluing of ``X`` and ``Y``. As soon
-as it is asked about any data on the gluing beyond its two `patches`, it will
-invoke the internally stored `compute_function` to actually carry out the computation
-of the gluing and then serve the incoming request on the basis of that result.
-The latter actual `ProjectiveGluing` will then be cached.
+The container `pg` can then be stored as the gluing of ``X`` and ``Y``. As soon 
+as it is asked about any data on the gluing beyond its two `patches`, it will 
+invoke the internally stored `compute_function` to actually carry out the computation 
+of the gluing and then serve the incoming request on the basis of that result. 
+The latter actual `ProjectiveGluing` will then be cached. 
 """
 mutable struct LazyProjectiveGluing{
                                      GluingType<:AbsGluing,
@@ -67,7 +67,7 @@ mutable struct LazyProjectiveGluing{
       X::AbsProjectiveScheme,
       Y::AbsProjectiveScheme,
       BG::AbsGluing,
-      compute_function::Function,
+      compute_function::Function, 
       gluing_data
     )
     (base_scheme(X), base_scheme(Y)) == patches(BG) || error("gluing is incompatible with provided patches")
@@ -89,21 +89,21 @@ end
 
 @doc raw"""
     ProjectiveGluing(
-        G::GluingType,
+        G::GluingType, 
         incP::IncType, incQ::IncType,
         f::IsoType, g::IsoType;
         check::Bool=true
       ) where {GluingType<:AbsGluing, IncType<:ProjectiveSchemeMor, IsoType<:ProjectiveSchemeMor}
 
-The `AbsProjectiveSchemeMorphism`s `incP` and `incQ` are open embeddings over open
-embeddings of their respective `base_scheme`s.
+The `AbsProjectiveSchemeMorphism`s `incP` and `incQ` are open embeddings over open 
+embeddings of their respective `base_scheme`s. 
 
         PX ↩ PU ≅ QV ↪ QY
       π ↓    ↓    ↓    ↓ π
-    G : X  ↩ U  ≅ V  ↪ Y
+    G : X  ↩ U  ≅ V  ↪ Y 
 
-This creates a gluing of the projective schemes `codomain(incP)` and `codomain(incQ)`
-over a gluing `G` of their `base_scheme`s along the morphisms of `AbsProjectiveScheme`s
+This creates a gluing of the projective schemes `codomain(incP)` and `codomain(incQ)` 
+over a gluing `G` of their `base_scheme`s along the morphisms of `AbsProjectiveScheme`s 
 `f` and `g`, identifying `domain(incP)` and `domain(incQ)`, respectively.
 """
 mutable struct ProjectiveGluing{
@@ -119,18 +119,18 @@ mutable struct ProjectiveGluing{
   f::IsoType1
   g::IsoType2
 
-  ###
-  # Given two relative projective schemes and a gluing
+  ### 
+  # Given two relative projective schemes and a gluing 
   #
   #       PX ↩ PU ≅ QV ↪ QY
   #     π ↓    ↓    ↓    ↓ π
-  #   G : X  ↩ U  ≅ V  ↪ Y
+  #   G : X  ↩ U  ≅ V  ↪ Y 
   #
-  # this constructs the gluing of PX and QY along
-  # their open subsets PU and QV, given the two inclusions
+  # this constructs the gluing of PX and QY along 
+  # their open subsets PU and QV, given the two inclusions 
   # and isomorphisms over the gluing G in the base schemes.
   function ProjectiveGluing(
-      G::GluingType,
+      G::GluingType, 
       incP::IncType1, incQ::IncType2,
       f::IsoType1, g::IsoType2;
       check::Bool=true
@@ -144,8 +144,8 @@ mutable struct ProjectiveGluing{
     (fb, gb) = gluing_morphisms(G)
     (PX, QY) = (codomain(incP), codomain(incQ))
     (PU, QV) = (domain(incP), domain(incQ))
-    (base_scheme(PX) == X && base_scheme(QY) == Y) || error("base gluing is incompatible with the projective schemes")
-    domain(f) == codomain(g) == PU && domain(g) == codomain(f) == QV || error("maps are not compatible")
+    (base_scheme(PX) === X && base_scheme(QY) === Y) || error("base gluing is incompatible with the projective schemes")
+    domain(f) === codomain(g) === PU && domain(g) === codomain(f) === QV || error("maps are not compatible")
     SPU = homogeneous_coordinate_ring(domain(f))
     SQV = homogeneous_coordinate_ring(codomain(f))
     @check begin
@@ -206,22 +206,22 @@ patches(PG::ProjectiveGluing) = (codomain(PG.inc_to_P), codomain(PG.inc_to_Q))
 gluing_morphisms(PG::ProjectiveGluing) = (PG.f, PG.g)
 
 ### Proper schemes π : Z → X over a covered base scheme X
-#
-# When {Uᵢ} is an affine covering of X, the datum stored
-# consists of a list of projective schemes
+# 
+# When {Uᵢ} is an affine covering of X, the datum stored 
+# consists of a list of projective schemes 
 #
 #   Zᵢ ⊂ ℙʳ⁽ⁱ⁾(𝒪(Uᵢ)) → Uᵢ
 #
-# with varying ambient spaces ℙʳ⁽ⁱ⁾(𝒪(Uᵢ)) and a list of
-# identifications (transitions)
+# with varying ambient spaces ℙʳ⁽ⁱ⁾(𝒪(Uᵢ)) and a list of 
+# identifications (transitions) 
 #
 #   Zᵢ ∩ π⁻¹(Uⱼ) ≅ Zⱼ ∩ π⁻¹(Uᵢ)
 #
 # of projective schemes over Uᵢ∩ Uⱼ for all pairs (i,j).
 #
-# These structs are designed to accommodate blowups of
-# covered schemes along arbitrary centers, as well as
-# projective bundles.
+# These structs are designed to accommodate blowups of 
+# covered schemes along arbitrary centers, as well as 
+# projective bundles. 
 
 @attributes mutable struct CoveredProjectiveScheme{BRT} <: Scheme{BRT}
   Y::AbsCoveredScheme # the base scheme
@@ -290,10 +290,10 @@ function Base.show(io::IO, ::MIME"text/plain", CPS::CoveredProjectiveScheme)
   print(io, Dedent(), "covered with ", ItemQuantity(n, "projective patch"))
   print(io, Indent())
   l = ndigits(n)
-  for i in 1:n
+  for (i, ppp) in enumerate(pp)
     li = ndigits(i)
     println(io)
-    print(io, " "^(l-li)*"$(i): ", Lowercase(), CPS[patches(base_covering(CPS))[i]])
+    print(io, " "^(l-li)*"$(i): ", Lowercase(), ppp)
   end
   print(io, Dedent())
 end
@@ -850,8 +850,8 @@ function _compute_gluing(gd::ProjectiveGluingData)
   #         U ⊃  A  ↔  B ⊂ V
   #                f,g
   #
-  # with UW = {sᵢ≠ 0} and VW = {tⱼ≠ 0}.
-  P = gd.proj
+  # with UW = {sᵢ≠ 0} and VW = {tⱼ≠ 0}. 
+  P = gd.projective_scheme
   (A, B) = gluing_domains(C[U, V])
   (f, g) = gluing_morphisms(C[U, V])
   (UD, VD) = gluing_domains(P[U, V])
@@ -999,7 +999,7 @@ end
     covered_scheme(P)
   end
   covering_pr = get_attribute(P, :covering_projection_to_base)::CoveringMorphism
-  return CoveredSchemeMorphism(covered_scheme(P), base_scheme(P), covering_pr)
+  return CoveredSchemeMorphism(covered_scheme(P), base_scheme(P), covering_pr; check=false)
 end
 
 
@@ -1039,7 +1039,7 @@ end
 #
 #
 #### NOT TESTED YET
-#function weak_transform(f::AffineSchemeMor, h::Vector{PolyType}, g::Vector{PolyType}) where{PolyType<:MPolyRingElem}
+#function weak_transform(f::SpecMor, h::Vector{PolyType}, g::Vector{PolyType}) where{PolyType<:MPolyRingElem}
 #
 #        X = domain(f)
 #        Y = codomain(f)
@@ -1052,7 +1052,7 @@ end
 #        while true
 #           Inew = quotient(Iold, Excdiv)
 #           !(Iold == Excdiv * Inew) && break
-#           Iold = Inew
+#           Iold = Inew 
 #        end
 #        return gens(Iold)
 #        #(IOw : Exc Div ^k), k maximal
@@ -1588,7 +1588,7 @@ end
 #    error("scheme is not smooth")
 #  end
 #  verbose && println(recstring*"selected the $((k, l))-th entry: $(Df[k,l])")
-#
+#  
 #  good_ext = (vcat(good[1], k), vcat(good[2], l))
 #  p = Df[k,l]
 #  Bnew = copy(B)
@@ -1721,7 +1721,7 @@ end
 #        Mnew[i-1,j] = maximum([(M[i,j] >= 0 ? M[i,j] + M[k,l] : -1), (M[i,l]>=0 ? M[k,j] + M[i,l] : -1)])
 #      end
 #      for j in l+1:n
-#        Mnew[i-1,j-1] = maximum([(M[i,j] >= 0 ? M[i,j] + M[k,l] : -1),
+#        Mnew[i-1,j-1] = maximum([(M[i,j] >= 0 ? M[i,j] + M[k,l] : -1), 
 #                                 (M[i,l]>=0 ? M[k,j] + M[i,l] : -1)])
 #      end
 #    end
