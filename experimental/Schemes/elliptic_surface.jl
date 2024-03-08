@@ -753,9 +753,10 @@ Output a list of tuples with each tuple as follows
 function standardize_fiber(S::EllipticSurface, f::Vector{<:WeilDivisor})
   @req all(is_prime(i) for i in f) "not a vector of prime divisors"
   f = copy(f)
-  O = components(zero_section(S))[1]
+  #O = components(zero_section(S))[1]
   for (i,D) in enumerate(f)
-    if !isone(O+components(D)[1])
+    #if !isone(O+components(D)[1])
+    if !iszero(intersect(zero_section(S), D))
       global f0 = D
       deleteat!(f,i)
       break
@@ -769,6 +770,8 @@ function standardize_fiber(S::EllipticSurface, f::Vector{<:WeilDivisor})
     for j in 1:i-1
       @vprint :EllipticSurface 4 "$(j) "
       # we know the intersections are 0 or 1
+      G[i, j] = G[j, i] = intersect(f[i], f[j])
+      continue
       if isone(components(f[i])[1]+components(f[j])[1])
         G[i,j] = 0
       else
