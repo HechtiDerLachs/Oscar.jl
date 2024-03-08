@@ -572,7 +572,7 @@ end
 function is_one(I::AbsIdealSheaf; covering::Covering=default_covering(scheme(I)))
   return get_attribute!(I, :is_one) do
     for U in keys(object_cache(I))
-      !is_one(I(U)) && return false
+      !is_one(cheap_sub_ideal(I, U)) && !is_one(I(U)) && return false
     end
     return all(x->isone(I(x)), covering)
   end::Bool
@@ -589,13 +589,15 @@ function is_one(I::SumIdealSheaf; covering::Covering=default_covering(scheme(I))
     if k !== nothing
       P = J[k]
       U = original_chart(P)
-      is_one(I(U)) || return false
+      if !is_one(cheap_sub_ideal(I, U))
+        is_one(I(U)) || return false
+      end
     end
 
     for U in keys(object_cache(I))
       !is_one(I(U)) && return false
     end
-    return all(x->isone(I(x)), covering)
+    return all(x->(isone(cheap_sub_ideal(I, x)) || isone(I(x))), covering)
   end::Bool
 end
 
@@ -1661,30 +1663,34 @@ function cheap_sub_ideal(II::AbsIdealSheaf, U::AbsAffineScheme)
   return II(U)
 end
 
-function cheap_sub_ideal(II::PrimeIdealSheafFromChart, U::AbsAffineScheme)
-  U === original_patch(II) && return II(U)
+function cheap_sub_ideal(II::SumIdealSheaf, U::AbsAffineScheme)
+  return sum(cheap_sub_ideal(J, U) for J in summands(II); init = ideal(OO(U), elem_type(OO(U))[]))
+end
+
+function cheap_sub_ideal(II::PrimeIdealSheafFromChart, U2::AbsAffineScheme)
+  U2 === original_patch(II) && return II(U2)
+  haskey(object_cache(II), U2) && return II(U2)
 
   # A modification of the code in produce_object
 
   # Initialize some local variables
-  X = scheme(F)
+  X = scheme(II)
   OOX = OO(X)
-  P = F.P
-  U = F.U
+  U = original_patch(II)
 
   # we are in the same ancestor tree, but on top of the defining chart
   if has_ancestor(x->(x===U2), U)
     iso = _flatten_open_subscheme(U, U2)
     iso_inv = inverse(iso)
     pb_P = pullback(iso_inv)(P)
-    return ideal(OO(U2), [g for g in OO(U2).(gens(saturated_ideal(pb_P))) if !iszero(g)])
+    return ideal(OO(U2), [g for g in OO(U2).(lifted_numerator.(gens(pb_P))) if !iszero(g)])
   end
 
   V = __find_chart(U, default_covering(X))
   # we are in the same ancestor tree, but somewhere else;
   # reconstruct from the root
   if has_ancestor(x->(x===V), U2)
-    return OOX(V, U2)(F(V))
+    return OOX(V, U2)(cheap_sub_ideal(II, V))
   end
 
   # we are in a different tree;
@@ -1715,13 +1721,13 @@ function cheap_sub_ideal(II::PrimeIdealSheafFromChart, U::AbsAffineScheme)
       I2 = F(codomain(g))
       I = pullback(g)(I2)
       isone(I) && continue
-      return OOX(V2, U2)(ideal(OO(V2), gens(saturated_ideal(I))))
+      return OOX(V2, U2)(ideal(OO(V2), lifted_numerator.(gens(I))))
     else
       Z = subscheme(W, F(W))
       pZ = preimage(g, Z, check=false)
       is_empty(pZ) && continue
       ZV = closure(pZ, V2, check=false)
-      return OOX(V2, U2)(ideal(OO(V2), [g for g in OO(V2).(small_generating_set(saturated_ideal(modulus(OO(ZV))))) if !iszero(g)]))
+      return OOX(V2, U2)(ideal(OO(V2), [g for g in OO(V2).(lifted_numerator.(gens(modulus(OO(ZV))))) if !iszero(g)]))
     end
   end
   # If nothing pulls back to this chart, the ideal sheaf is trivial here.
