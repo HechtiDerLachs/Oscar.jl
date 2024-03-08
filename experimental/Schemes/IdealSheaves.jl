@@ -1696,16 +1696,16 @@ function cheap_sub_ideal(II::PrimeIdealSheafFromChart, U2::AbsAffineScheme)
   # we are in a different tree;
   # reconstruct from that root
   V2 = __find_chart(U2, default_covering(X))
-  if haskey(object_cache(F), V2) && V2 !== U2
-    return OOX(V2, U2)(F(V2))
+  if haskey(object_cache(II), V2) && V2 !== U2
+    return OOX(V2, U2)(II(V2))
   end
 
-  F(V) # Fill the cache with at least one element
+  II(V) # Fill the cache with at least one element
 
-  fat = [W for W in keys(object_cache(F)) if any(x->x===W, affine_charts(X)) && !isone(F(W))]
+  fat = [W for W in keys(object_cache(II)) if any(x->x===W, affine_charts(X)) && !isone(II(W))]
 
   function complexity(X1::AbsAffineScheme)
-    init = maximum(total_degree.(lifted_numerator.(gens(F(X1)))); init=0)
+    init = maximum(total_degree.(lifted_numerator.(gens(II(X1)))); init=0)
     glue = default_covering(X)[V, X1]
     if glue isa SimpleGluing || (glue isa LazyGluing && is_computed(glue))
       return init
@@ -1718,12 +1718,12 @@ function cheap_sub_ideal(II::PrimeIdealSheafFromChart, U2::AbsAffineScheme)
     glue = default_covering(X)[W, V2]
     f, g = gluing_morphisms(glue)
     if glue isa SimpleGluing || (glue isa LazyGluing && first(gluing_domains(glue)) isa PrincipalOpenSubset)
-      I2 = F(codomain(g))
+      I2 = II(codomain(g))
       I = pullback(g)(I2)
       isone(I) && continue
       return OOX(V2, U2)(ideal(OO(V2), lifted_numerator.(gens(I))))
     else
-      Z = subscheme(W, F(W))
+      Z = subscheme(W, II(W))
       pZ = preimage(g, Z, check=false)
       is_empty(pZ) && continue
       ZV = closure(pZ, V2, check=false)
