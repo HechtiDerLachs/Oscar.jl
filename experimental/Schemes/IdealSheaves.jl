@@ -1668,7 +1668,7 @@ function cheap_sub_ideal(II::SumIdealSheaf, U::AbsAffineScheme)
 end
 
 function cheap_sub_ideal(II::PrimeIdealSheafFromChart, U2::AbsAffineScheme)
-  U2 === original_patch(II) && return II(U2)
+  U2 === original_chart(II) && return II(U2)
   haskey(object_cache(II), U2) && return II(U2)
 
   # A modification of the code in produce_object
@@ -1676,7 +1676,7 @@ function cheap_sub_ideal(II::PrimeIdealSheafFromChart, U2::AbsAffineScheme)
   # Initialize some local variables
   X = scheme(II)
   OOX = OO(X)
-  U = original_patch(II)
+  U = original_chart(II)
 
   # we are in the same ancestor tree, but on top of the defining chart
   if has_ancestor(x->(x===U2), U)
