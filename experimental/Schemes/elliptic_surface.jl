@@ -393,7 +393,7 @@ function _separate_singularities!(X::EllipticSurface)
   P = codomain(inc_S)
 
   I_sing = ideal_sheaf_of_singular_locus(S)
-  I_sing_P = radical(pushforward(inc_S)(I_sing))
+  I_sing_P = SimplifiedIdealSheaf(pushforward(inc_S)(I_sing))
 
   # Refine the covering over the reducible singular fibers
   # to make sure that there is only a single singular point in each chart
@@ -566,7 +566,7 @@ function weierstrass_contraction(X::EllipticSurface)
       #inherit_decomposition_info!(cov, X0)
     end
     # take the first singular point and blow it up
-    J = radical(I_sing_X0[1]) # radical to have small number of generators
+    J = SimplifiedIdealSheaf(I_sing_X0[1])
     pr_X1 = blow_up(J, covering=cov, var_name=varnames[1+mod(count, length(varnames))])
 
     # Set the attribute so that the strict_transform does some extra work
@@ -1100,6 +1100,8 @@ function linear_system(X::EllipticSurface, P::EllipticCurvePoint, k::Int64)
 
     I = saturated_ideal(defining_ideal(U))
     IP = ideal([x*xd(t)-xn(t),y*yd(t)-yn(t)])
+    @show gens(I)
+    @show gens(IP)
     issubset(I, IP) || error("P does not define a point on the Weierstrasschart")
 
     @assert gcd(xn, xd)==1
