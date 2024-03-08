@@ -571,8 +571,36 @@ end
 
 function is_one(I::AbsIdealSheaf; covering::Covering=default_covering(scheme(I)))
   return get_attribute!(I, :is_one) do
+    for U in keys(object_cache(I))
+      !is_one(I(U)) && return false
+    end
     return all(x->isone(I(x)), covering)
   end::Bool
+end
+
+function is_one(I::PrimeIdealSheafFromChart; covering::Covering=default_covering(scheme(I)))
+  return false
+end
+
+function is_one(I::SumIdealSheaf; covering::Covering=default_covering(scheme(I)))
+  return get_attribute!(I, :is_one) do
+    J = summands(I)
+    k = findfirst(x->x isa PrimeIdealSheafFromChart, J)
+    if k !== nothing
+      P = J[k]
+      U = original_chart(P)
+      is_one(I(U)) || return false
+    end
+
+    for U in keys(object_cache(I))
+      !is_one(I(U)) && return false
+    end
+    return all(x->isone(I(x)), covering)
+  end::Bool
+end
+
+function is_one(I::ProductIdealSheaf; covering::Covering=default_covering(scheme(I)))
+  return all(x->is_one(x), factors(I))
 end
 
 @doc raw"""
@@ -1633,7 +1661,7 @@ function cheap_sub_ideal(II::AbsIdealSheaf, U::AbsAffineScheme)
   return II(U)
 end
 
-function cheap_sub_ideal(II::PrimeIdealSheafFromChart, U::AbsAffineSchem)
+function cheap_sub_ideal(II::PrimeIdealSheafFromChart, U::AbsAffineScheme)
   U === original_patch(II) && return II(U)
 
   # A modification of the code in produce_object
