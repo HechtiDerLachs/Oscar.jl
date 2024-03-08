@@ -798,7 +798,7 @@ Return the fiber of $\pi\colon X \to C$ over $P\in C$ as a Cartier divisor.
 function fiber_cartier(S::EllipticSurface, P::Vector = ZZ.([0,1]))
   S0,_ = weierstrass_model(S)
   underlying_scheme(S) # cache stuff
-  D = IdDict{AbsSpec, RingElem}()
+  D = IdDict{AbsAffineScheme, RingElem}()
   k = base_ring(S0)
   P = k.(P)
 

@@ -2,7 +2,7 @@ function ideal_sheaf_of_critical_locus(phi::AbsCoveredSchemeMorphism)
   phi_cov = covering_morphism(phi)
   dom_cov = domain(phi_cov)
   cod_cov = codomain(phi_cov)
-  ideal_dict = IdDict{AbsSpec, Ideal}()
+  ideal_dict = IdDict{AbsAffineScheme, Ideal}()
   for U in patches(dom_cov)
     phi_loc = phi_cov[U]
     V = codomain(phi_loc)

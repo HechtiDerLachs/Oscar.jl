@@ -494,22 +494,22 @@ given by the pullback function
   codomain::CodomainType
   domain_covering::Covering
   codomain_covering::Covering
-  domain_chart::AbsSpec
-  codomain_chart::AbsSpec
+  domain_chart::AbsAffineScheme
+  codomain_chart::AbsAffineScheme
   coord_imgs::Vector{<:FieldElem}
   run_internal_checks::Bool
 
   ### Various fields for caching
-  patch_representatives::IdDict{<:AbsSpec, <:Tuple{<:AbsSpec, <:Vector{<:FieldElem}}}
-  realizations::IdDict{<:AbsSpec, <:Vector{<:AbsSpecMor}}
-  realization_previews::IdDict{<:Tuple{<:AbsSpec, <:AbsSpec}, <:Vector{<:FieldElem}}
-  maximal_extensions::IdDict{<:Tuple{<:AbsSpec, <:AbsSpec}, <:Vector{<:AbsSpecMor}}
-  cheap_realizations::IdDict{<:Tuple{<:AbsSpec, <:AbsSpec}, <:AbsSpecMor}
+  patch_representatives::IdDict{<:AbsAffineScheme, <:Tuple{<:AbsAffineScheme, <:Vector{<:FieldElem}}}
+  realizations::IdDict{<:AbsAffineScheme, <:Vector{<:AbsAffineScheme}}
+  realization_previews::IdDict{<:Tuple{<:AbsAffineScheme, <:AbsAffineScheme}, <:Vector{<:FieldElem}}
+  maximal_extensions::IdDict{<:Tuple{<:AbsAffineScheme, <:AbsAffineScheme}, <:Vector{<:AbsAffineSchemeMor}}
+  cheap_realizations::IdDict{<:Tuple{<:AbsAffineScheme, <:AbsAffineScheme}, <:AbsAffineSchemeMor}
   full_realization::CoveredSchemeMorphism
 
   function MorphismFromRationalFunctions(
       X::AbsCoveredScheme, Y::AbsCoveredScheme, 
-      U::AbsSpec, V::AbsSpec,
+      U::AbsAffineScheme, V::AbsAffineScheme,
       a::Vector{<:FieldElem};
       check::Bool=true,
       domain_covering::Covering=default_covering(X),
@@ -525,12 +525,12 @@ given by the pullback function
     R = base_ring(F)
     all(x->parent(x)===F, a) || error("coordinate images must be elements of the same field")
     R === ambient_coordinate_ring(U) || error("images of pullback of the coordinates do not live in the correct ring")
-    patch_repr = IdDict{AbsSpec, Tuple{AbsSpec, Vector{FieldElem}}}()
+    patch_repr = IdDict{AbsAffineScheme, Tuple{AbsAffineScheme, Vector{FieldElem}}}()
     patch_repr[U] = (V, a)
-    realizations = IdDict{AbsSpec, Vector{AbsSpecMor}}()
-    realization_previews = IdDict{Tuple{AbsSpec, AbsSpec}, Vector{FieldElem}}()
-    maximal_extensions = IdDict{Tuple{AbsSpec, AbsSpec}, Vector{AbsSpecMor}}()
-    cheap_realizations = IdDict{Tuple{AbsSpec, AbsSpec}, AbsSpecMor}()
+    realizations = IdDict{AbsAffineScheme, Vector{AbsAffineScheme}}()
+    realization_previews = IdDict{Tuple{AbsAffineScheme, AbsAffineScheme}, Vector{FieldElem}}()
+    maximal_extensions = IdDict{Tuple{AbsAffineScheme, AbsAffineScheme}, Vector{AbsAffineSchemeMor}}()
+    cheap_realizations = IdDict{Tuple{AbsAffineScheme, AbsAffineScheme}, AbsAffineSchemeMor}()
     return new{typeof(X), typeof(Y)}(X, Y, domain_covering, codomain_covering, 
                                      U, V, a, check, patch_repr, realizations, 
                                      realization_previews, maximal_extensions,

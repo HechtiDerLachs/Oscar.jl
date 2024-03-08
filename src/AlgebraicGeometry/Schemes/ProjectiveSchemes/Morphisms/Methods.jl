@@ -127,7 +127,7 @@ end
   X = covered_scheme(PX)
   Y = covered_scheme(PY)
 
-  mor_dict = IdDict{AbsSpec, AbsSpecMor}()
+  mor_dict = IdDict{AbsAffineScheme, AbsAffineSchemeMor}()
   U = affine_charts(X)
   if ngens(SY) == ngens(SX) && all(k->pullback(f)(SY[k]) == SX[k], 1:ngens(SY))
     for i in 1:ngens(SX)
@@ -171,7 +171,7 @@ end
   end
   # We skip the glueings for the time being.
   # Eventually, they should be made lazy.
-  CC = Covering(collect(keys(mor_dict)), IdDict{Tuple{AbsSpec, AbsSpec}, AbsGlueing}())
+  CC = Covering(collect(keys(mor_dict)), IdDict{Tuple{AbsAffineScheme, AbsAffineSchemeMor}, AbsGlueing}())
   inherit_glueings!(CC, default_covering(X))
   phi = CoveringMorphism(CC, default_covering(Y), mor_dict, check=false)
   push!(coverings(X), CC)

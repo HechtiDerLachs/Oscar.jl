@@ -400,7 +400,7 @@ underlying_morphism(Phi::MorphismFromRationalFunctions) = realize(Phi)
 ###
 # Find a random open subset `W ⊂ U` to which all the rational functions 
 # represented by the elements in `a` can be extended as regular functions.
-function _random_extension(U::AbsSpec, a::Vector{<:FieldElem})
+function _random_extension(U::AbsAffineScheme, a::Vector{<:FieldElem})
   R = ambient_coordinate_ring(U)
   if iszero(length(a))
     return [(U, elem_type(U)[])]
@@ -438,7 +438,7 @@ end
 # represented by the elements in `a` can be extended as regular functions
 # and return a list of tuples `(W', a')` of realizations on principal 
 # open subsets W' covering W.
-function _extend(U::AbsSpec, a::Vector{<:FieldElem})
+function _extend(U::AbsAffineScheme, a::Vector{<:FieldElem})
   R = ambient_coordinate_ring(U)
   if iszero(length(a))
     return [(U, elem_type(U)[])]
@@ -486,7 +486,7 @@ function _extend(U::AbsSpec, a::Vector{<:FieldElem})
   #I_undef = ideal(OO(U), small_generating_set(I_undef))
   #I_undef = radical(I_undef)
 
-  result = Vector{Tuple{AbsSpec, Vector{RingElem}}}()
+  result = Vector{Tuple{AbsAffineScheme, Vector{RingElem}}}()
 
   for g in small_generating_set(I_undef)
     Ug = PrincipalOpenSubset(U, g)
@@ -511,7 +511,7 @@ equidimensional_decomposition_radical(I::MPolyQuoLocalizedIdeal) = [ideal(base_r
 # is already fully computed, but which is not in `covered`. 
 # If no such `U` exists: Bad luck. We just take any other one 
 # and the gluing has to be computed eventually. 
-function _find_good_neighboring_patch(cov::Covering, covered::Vector{<:AbsSpec})
+function _find_good_neighboring_patch(cov::Covering, covered::Vector{<:AbsAffineScheme})
   U = [x for x in patches(cov) if !any(y->y===x, covered)]
   glue = gluings(cov)
   good_neighbors = [(x, y) for x in U for y in covered if 
@@ -531,16 +531,16 @@ end
 # as regular functions on U' and a morphism U' → A to the `ambient_space` 
 # of V can be realized, V might be so small that we need a proper restriction 
 # of the domain. The methods below take care of that. 
-function _restrict_properly(f::AbsSpecMor, V::AbsSpec{<:Ring, <:MPolyRing})
+function _restrict_properly(f::AbsAffineScheme, V::AbsAffineScheme{<:Ring, <:MPolyRing})
   return restrict(f, domain(f), V, check=false)
 end
 
-function _restrict_properly(f::AbsSpecMor, V::AbsSpec{<:Ring, <:MPolyQuoRing})
+function _restrict_properly(f::AbsAffineSchemeMor, V::AbsAffineScheme{<:Ring, <:MPolyQuoRing})
   return restrict(f, domain(f), V, check=false)
 end
 
 function _restrict_properly(
-    f::AbsSpecMor{<:PrincipalOpenSubset}, V::AbsSpec{<:Ring, <:RT}
+    f::AbsAffineSchemeMor{<:PrincipalOpenSubset}, V::AbsAffineScheme{<:Ring, <:RT}
   ) where {RT<:MPolyLocRing{<:Ring, <:RingElem, 
                             <:MPolyRing, <:MPolyRingElem, 
                             <:MPolyPowersOfElement}
@@ -554,7 +554,7 @@ function _restrict_properly(
 end
 
 function _restrict_properly(
-    f::AbsSpecMor{<:PrincipalOpenSubset}, V::AbsSpec{<:Ring, <:RT}
+    f::AbsAffineSchemeMor{<:PrincipalOpenSubset}, V::AbsAffineScheme{<:Ring, <:RT}
   ) where {RT<:MPolyQuoLocRing{<:Ring, <:RingElem, 
                             <:MPolyRing, <:MPolyRingElem, 
                             <:MPolyPowersOfElement}
@@ -659,7 +659,7 @@ function _try_pullback_cheap(phi::MorphismFromRationalFunctions, I::IdealSheaf)
   scheme(I) === Y || error("ideal sheaf not defined on the correct scheme")
   # Find a patch in Y on which this component is visible
   all_V = [V for V in affine_charts(Y) if !isone(I(V))]
-  function complexity_codomain(V::AbsSpec)
+  function complexity_codomain(V::AbsAffineScheme)
     return sum(total_degree.(lifted_numerator.(gens(I(V)))); init=0)
   end
   sort!(all_V, lt=(x,y)->complexity_codomain(x)<complexity_codomain(y))
@@ -668,21 +668,21 @@ function _try_pullback_cheap(phi::MorphismFromRationalFunctions, I::IdealSheaf)
     # Find a patch in X in which the pullback is visible
     JJ = IdealSheaf(X)
     all_U = copy(affine_charts(X))
-    function complexity(U::AbsSpec)
+    function complexity(U::AbsAffineScheme)
       a = realization_preview(phi, U, V)
       return maximum(vcat([total_degree(numerator(f)) for f in a], [total_degree(denominator(f)) for f in a]))
     end
     sort!(all_U, lt=(x,y)->complexity(x)<complexity(y))
 
     # First try to get hold of the component via cheap realizations 
-    pullbacks = IdDict{AbsSpec, Ideal}()
+    pullbacks = IdDict{AbsAffineScheme, Ideal}()
     for U in all_U
       psi = cheap_realization(phi, U, V)
       U_sub = domain(psi)
       pullbacks[U] = pullback(psi)(saturated_ideal(I(V)))
     end
       #J = pullback(psi)(saturated_ideal(I(V)))
-    function new_complexity(U::AbsSpec)
+    function new_complexity(U::AbsAffineScheme)
       return sum(total_degree.(lifted_numerator.(gens(pullbacks[U]))); init=0)
     end
     sort!(all_U, lt=(x,y)->new_complexity(x)<new_complexity(y))
@@ -720,7 +720,7 @@ function _try_randomized_pullback(phi::MorphismFromRationalFunctions, I::IdealSh
   V = first(all_V)
 
   all_U = copy(affine_charts(X))
-  function complexity(U::AbsSpec)
+  function complexity(U::AbsAffineScheme)
     a = realization_preview(phi, U, V)
     return maximum(vcat([total_degree(numerator(f)) for f in a], [total_degree(denominator(f)) for f in a]))
   end
@@ -754,7 +754,7 @@ function _pullback(phi::MorphismFromRationalFunctions, I::IdealSheaf)
   V = first(all_V)
 
   all_U = copy(affine_charts(X))
-  function complexity(U::AbsSpec)
+  function complexity(U::AbsAffineScheme)
     a = realization_preview(phi, U, V)
     return maximum(vcat([total_degree(numerator(f)) for f in a], [total_degree(denominator(f)) for f in a]))
   end

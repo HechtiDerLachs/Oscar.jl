@@ -851,7 +851,7 @@ function _compute_gluing(gd::ProjectiveGluingData)
   #                f,g
   #
   # with UW = {sᵢ≠ 0} and VW = {tⱼ≠ 0}. 
-  P = gd.projective_scheme
+  P = gd.proj
   (A, B) = gluing_domains(C[U, V])
   (f, g) = gluing_morphisms(C[U, V])
   (UD, VD) = gluing_domains(P[U, V])
