@@ -419,6 +419,14 @@ function colength(I::AbsIdealSheaf; covering::Covering=default_covering(scheme(I
   result = 0
   while length(patches_todo) != 0
     U = pop!(patches_todo)
+
+    # First do a cheaper test whether this chart needs to be looked at
+    J_cheap = cheap_sub_ideal(I, U)
+    if has_decomposition_info(covering)
+      h = decomposition_info(covering)[U]
+      isone(J_cheap + ideal(OO(U), h)) && break
+    end
+
     J = I(U)
     if has_decomposition_info(covering)
       h = decomposition_info(covering)[U]
