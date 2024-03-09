@@ -418,7 +418,7 @@ function colength(I::AbsIdealSheaf; covering::Covering=default_covering(scheme(I
   patches_done = AbsAffineScheme[]
   patches_todo = AbsAffineScheme[]
   for U in all_patches
-    if U in object_cache(I) && has_attribute(I(U), :is_one) && is_one(I(U))
+    if U in keys(object_cache(I)) && has_attribute(I(U), :is_one) && is_one(I(U))
       push!(patches_done, U)
     else
       push!(patches_todo, U)
