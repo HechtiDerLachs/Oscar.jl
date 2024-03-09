@@ -386,7 +386,7 @@ function intersect(D::AbsWeilDivisor, E::AbsWeilDivisor;
         result = result + a1*a2*_self_intersection(c1)
       else
         I = c1 + c2
-        if dim(I) > 0
+        if has_dimension_leq_zero(I)
           if c1 == c2
             result = result + a1*a2*_self_intersection(c1)
           else
@@ -399,6 +399,49 @@ function intersect(D::AbsWeilDivisor, E::AbsWeilDivisor;
     end
   end
   return result
+end
+
+function has_dimension_leq_zero(I::AbsIdealSheaf; covering::Covering=default_covering(scheme(I)))
+  for U in keys(object_cache(I))
+    dim(I(U)) <= 0 || return false
+  end
+
+  all_patches = patches(covering)
+  for U in all_patches
+    if dim(cheap_sub_ideal(I, U)) > 0
+      dim(I(U)) <= 0 || return false
+    end
+  end
+  return true
+end
+
+function has_dimension_leq_zero(I::SumIdealSheaf; covering::Covering=default_covering(scheme(I)))
+  J = summands(I)
+  k = findfirst(x->x isa PrimeIdealSheafFromChart, J)
+  if k !== nothing 
+    P = J[k]
+    U = original_chart(P)
+    if dim(cheap_sub_ideal(I, U)) > 0
+      dim(I(U)) <= 0 || return false
+    end
+  end
+
+  common_patches = keys(object_cache(first(J)))
+  for JJ in J[2:end]
+    common_patches = [U for U in common_patches if U in keys(object_cache(JJ))]
+  end
+
+  for U in common_patches
+    dim(I(U)) <= 0 || return false
+  end
+
+  all_patches = patches(covering)
+  for U in all_patches
+    if dim(cheap_sub_ideal(I, U)) > 0
+      dim(I(U)) <= 0 || return false
+    end
+  end
+  return true
 end
 
 """
