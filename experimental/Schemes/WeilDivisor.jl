@@ -386,7 +386,7 @@ function intersect(D::AbsWeilDivisor, E::AbsWeilDivisor;
         result = result + a1*a2*_self_intersection(c1)
       else
         I = c1 + c2
-        if has_dimension_leq_zero(I)
+        if !has_dimension_leq_zero(I)
           if c1 == c2
             result = result + a1*a2*_self_intersection(c1)
           else
