@@ -424,6 +424,8 @@ function colength(I::AbsIdealSheaf; covering::Covering=default_covering(scheme(I
       push!(patches_todo, U)
     end
   end
+  @show patches_todo
+  @show patches_done
 
   result = 0
   while length(patches_todo) != 0
@@ -436,7 +438,10 @@ function colength(I::AbsIdealSheaf; covering::Covering=default_covering(scheme(I
       @show gens(J_cheap)
       @show h
       @show isone(J_cheap + ideal(OO(U), OO(U).(h)))
-      isone(J_cheap + ideal(OO(U), OO(U).(h))) && break
+      if isone(J_cheap + ideal(OO(U), OO(U).(h)))
+        push!(patches_done, U)
+        continue
+      end
     end
 
     J = I(U)
@@ -452,7 +457,10 @@ function colength(I::AbsIdealSheaf; covering::Covering=default_covering(scheme(I
           g = g * g
         end
         J = J + ideal(OO(U), g)
-        isone(J) && break
+        if isone(J)
+          push!(patches_done, U)
+          continue
+        end
       end
     else
       # To avoid overcounting, throw away all components that 
