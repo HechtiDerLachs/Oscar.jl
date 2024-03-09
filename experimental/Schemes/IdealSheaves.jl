@@ -1541,10 +1541,11 @@ function produce_object(F::PrimeIdealSheafFromChart, U2::AbsAffineScheme)
     glue = default_covering(X)[W, V2]
     f, g = gluing_morphisms(glue)
     if glue isa SimpleGluing || (glue isa LazyGluing && first(gluing_domains(glue)) isa PrincipalOpenSubset)
+      complement_equation(codomain(g)) in F(W) && continue # We know the ideal is prime. No need to saturate!
       I2 = F(codomain(g))
       I = pullback(g)(I2)
-      isone(I) && continue
-      return OOX(V2, U2)(ideal(OO(V2), gens(saturated_ideal(I))))
+      I = _iterative_saturation(I, lifted_numerator(complement_equation(domain(g))))
+      return OOX(V2, U2)(ideal(OO(V2), lifted_numerator.(gens(I))))
     else
       Z = subscheme(W, F(W))
       pZ = preimage(g, Z, check=false)
