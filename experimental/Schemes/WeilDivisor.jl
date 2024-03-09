@@ -414,8 +414,17 @@ end
 
 function colength(I::AbsIdealSheaf; covering::Covering=default_covering(scheme(I)))
   X = scheme(I)
-  patches_todo = copy(patches(covering))
+  all_patches = copy(patches(covering))
   patches_done = AbsAffineScheme[]
+  patches_todo = AbsAffineScheme[]
+  for U in all_patches
+    if U in object_cache(I) && has_attribute(I(U), :is_one) && is_one(I(U))
+      push!(patches_done, U)
+    else
+      push!(patches_todo, U)
+    end
+  end
+
   result = 0
   while length(patches_todo) != 0
     U = pop!(patches_todo)
@@ -424,6 +433,9 @@ function colength(I::AbsIdealSheaf; covering::Covering=default_covering(scheme(I
     J_cheap = cheap_sub_ideal(I, U)
     if has_decomposition_info(covering)
       h = decomposition_info(covering)[U]
+      @show gens(J_cheap)
+      @show h
+      @show isone(J_cheap + ideal(OO(U), OO(U).(h)))
       isone(J_cheap + ideal(OO(U), OO(U).(h))) && break
     end
 
