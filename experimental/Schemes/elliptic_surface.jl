@@ -590,8 +590,8 @@ function weierstrass_contraction(X::EllipticSurface)
     I_sing_X0 = AbsIdealSheaf[pullback(pr_X1, J) for J in I_sing_X0[2:end]]
 
     # Add eventual new components
-    I_sing_new = ideal_sheaf_of_singular_locus(Y1) + ideal_sheaf(E1) # new components only along the exc. set
-    I_sing_new = pushforward(inc_Y1, I_sing_new)
+    I_sing_new = ideal_sheaf_of_singular_locus(Y1)
+    I_sing_new = pushforward(inc_Y1, I_sing_new) + ideal_sheaf(E1) # new components only along the exc. set
     I_sing_X0 = vcat(I_sing_X0, maximal_associated_points(I_sing_new))
 
     push!(projectionsX, pr_X1)
