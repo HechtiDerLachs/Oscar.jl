@@ -525,6 +525,8 @@ function weierstrass_contraction(X::EllipticSurface)
   X0 = codomain(inc_S)
   Y0 = S
   inc_Y0 = inc_S
+  I_sing_Y0 = maximal_associated_points(ideal_sheaf_of_singular_locus(Y0))::Vector{<:AbsIdealSheaf}
+  I_sing_X0 = pushforward(inc_Y0).(I_sing_Y0)
 
 
   ambient_exceptionals = EffectiveCartierDivisor[]
@@ -539,12 +541,12 @@ function weierstrass_contraction(X::EllipticSurface)
     count = count+1
     @vprint :EllipticSurface 1 "blowup number: $(count)\n"
     @vprint :EllipticSurface 2 "computing singular locus\n"
-    I_sing_Y0 = ideal_sheaf_of_singular_locus(Y0)
+    #I_sing_Y0 = ideal_sheaf_of_singular_locus(Y0)
     @vprint :EllipticSurface 2 "decomposing singular locus\n"
-    I_sing_Y0 = maximal_associated_points(I_sing_Y0)
-    I_sing_X0 = pushforward(inc_Y0).(I_sing_Y0)
-    @vprint :EllipticSurface 1 "number of singular points: $(length(I_sing_Y0))\n"
-    if length(I_sing_Y0)==0
+    #I_sing_Y0 = maximal_associated_points(I_sing_Y0)
+    #I_sing_X0 = pushforward(inc_Y0).(I_sing_Y0)
+    @vprint :EllipticSurface 1 "number of singular points: $(length(I_sing_X0))\n"
+    if length(I_sing_X0)==0
       # stop if smooth
       break
     end
@@ -583,6 +585,14 @@ function weierstrass_contraction(X::EllipticSurface)
     push!(ambient_exceptionals, E1)
 
     Y1, inc_Y1, pr_Y1 = strict_transform(pr_X1, inc_Y0)
+
+    # transform the singular loci
+    I_sing_X0 = AbsIdealSheaf[pullback(pr_X1, J) for J in I_sing_X0[2:end]]
+
+    # Add eventual new components
+    I_sing_new = ideal_sheaf_of_singular_locus(Y1) + ideal_sheaf(E1) # new components only along the exc. set
+    I_sing_new = pushforward(inc_Y1, I_sing_new)
+    I_sing_X0 = vcat(I_sing_X0, maximal_associated_points(I_sing_new))
 
     push!(projectionsX, pr_X1)
     push!(projectionsY, pr_Y1)
