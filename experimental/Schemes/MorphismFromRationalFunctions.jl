@@ -699,6 +699,26 @@ function _try_pullback_cheap(phi::MorphismFromRationalFunctions, I::IdealSheaf)
   return nothing
 end
 
+function _try_pullback_cheap(phi::MorphismFromRationalFunctions, I::PrimeIdealSheafFromChart)
+  X = domain(phi)
+  Y = codomain(phi)
+  scheme(I) === Y || error("ideal sheaf not defined on the correct scheme")
+  # Find a patch in Y on which this component is visible
+  V0 = original_chart(I)
+
+  for U in affine_charts(X)
+    psi = cheap_realization(phi, U, V0)
+    J = pullback(psi)(saturated_ideal(I(V0)))
+    if !isone(J)
+      JJ = IdealSheaf(X, domain(psi), gens(J))
+      return JJ
+      break
+    end
+  end
+
+  return nothing
+end
+
 # Similar to the above function, but this time we try pairs (U, V) and determine the 
 # maximal open subset W ⊂ U such that the restriction `W → V` of `phi` can be realized. 
 # Then we take a random linear combination `h` of the generators of the ideal for the 
