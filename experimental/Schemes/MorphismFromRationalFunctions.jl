@@ -294,7 +294,7 @@ Note that `U'` need not (and usually will not) be maximal with this property.
 function random_realization(Phi::MorphismFromRationalFunctions, U::AbsAffineScheme, V::AbsAffineScheme)
   img_gens_frac = realization_preview(Phi, U, V)
   U_sub, img_gens = _random_extension(U, img_gens_frac)
-  phi = morphism(U_sub, ambient_space(V), img_gens, check=true) # Set to false
+  phi = morphism(U_sub, ambient_space(V), img_gens, check=false)
   return phi
 end
 
@@ -336,8 +336,8 @@ function cheap_realization(Phi::MorphismFromRationalFunctions, U::AbsAffineSchem
   end
   denoms = [denominator(a) for a in img_gens_frac]
   U_sub = PrincipalOpenSubset(U, OO(U).(denoms))
-  img_gens = [OO(U_sub)(numerator(a), denominator(a), check=true) for a in img_gens_frac] # Set to false
-  phi = morphism(U_sub, ambient_space(V), img_gens, check=true) # Set to false
+  img_gens = [OO(U_sub)(numerator(a), denominator(a), check=false) for a in img_gens_frac] # Set to false
+  phi = morphism(U_sub, ambient_space(V), img_gens, check=false) # Set to false
   cheap_realizations(Phi)[(U, V)] = phi
   return phi
 end
@@ -737,6 +737,41 @@ function _try_randomized_pullback(phi::MorphismFromRationalFunctions, I::PrimeId
   end
 
   return nothing
+end
+
+function _pullback(phi::MorphismFromRationalFunctions, I::PrimeIdealSheafFromChart)
+  V0 = original_chart(I)
+  X = domain(phi)
+  Y = codomain(phi)
+  V = affine_charts(Y)
+  U = affine_charts(X)
+
+  cod_patches = AbsAffineScheme[V0]
+  cod_patches = vcat(cod_patches, [U for U in keys(object_cache(I)) if any(x->x===U, affine_charts(Y))])
+  cod_patches = vcat(cod_patches, [U for U in affine_charts(Y) if !any(x->x===U, cod_patches)])
+  for U0 in U
+    I_undef = ideal(OO(U0), elem_type(OO(U0))[])
+    random_realizations = IdDict{AbsAffineScheme, AbsAffineSchemeMor}()
+    for V0 in cod_patches
+      psi = random_realization(phi, U0, V0)
+      I_undef = I_undef + ideal(OO(U0), complement_equation(domain(psi)))
+      random_realizations[V0] = psi
+      if isone(I_undef)
+        break
+      end
+    end
+    if isone(I_undef)
+      J = ideal(OO(U0), elem_type(OO(U0))[])
+      for (V0, psi) in random_realizations
+        J_loc = pullback(psi, saturated_ideal(I(V0)))
+        J = J + ideal(OO(U0), lifted_numerator.(gens(J_loc)))
+      end
+      return IdealSheaf(X, U0, gens(J))
+    else
+      continue
+    end
+  end
+  error("pullback did not succeed")
 end
 
 # Similar to the above function, but this time we try pairs (U, V) and determine the 
