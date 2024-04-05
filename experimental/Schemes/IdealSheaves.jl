@@ -1674,6 +1674,8 @@ function cheap_sub_ideal(II::PrimeIdealSheafFromChart, U2::AbsAffineScheme)
   U2 === original_chart(II) && return II(U2)
   haskey(object_cache(II), U2) && return II(U2)
 
+  haskey(II.cheap_sub_ideals, U2) && return II.cheap_sub_ideals[U2]
+
   # A modification of the code in produce_object
 
   # Initialize some local variables
@@ -1686,21 +1688,27 @@ function cheap_sub_ideal(II::PrimeIdealSheafFromChart, U2::AbsAffineScheme)
     iso = _flatten_open_subscheme(U, U2)
     iso_inv = inverse(iso)
     pb_P = pullback(iso_inv)(P)
-    return ideal(OO(U2), [g for g in OO(U2).(lifted_numerator.(gens(pb_P))) if !iszero(g)])
+    result = ideal(OO(U2), [g for g in OO(U2).(lifted_numerator.(gens(pb_P))) if !iszero(g)])
+    II.cheap_sub_ideals[U2] = result
+    return result
   end
 
   V = __find_chart(U, default_covering(X))
   # we are in the same ancestor tree, but somewhere else;
   # reconstruct from the root
   if has_ancestor(x->(x===V), U2)
-    return OOX(V, U2)(cheap_sub_ideal(II, V))
+    result = OOX(V, U2)(cheap_sub_ideal(II, V))
+    II.cheap_sub_ideals[U2] = result
+    return result
   end
 
   # we are in a different tree;
   # reconstruct from that root
   V2 = __find_chart(U2, default_covering(X))
   if haskey(object_cache(II), V2) && V2 !== U2
-    return OOX(V2, U2)(II(V2))
+    result = OOX(V2, U2)(II(V2))
+    II.cheap_sub_ideals[U2] = result
+    return result
   end
 
   II(V) # Fill the cache with at least one element
@@ -1716,25 +1724,34 @@ function cheap_sub_ideal(II::PrimeIdealSheafFromChart, U2::AbsAffineScheme)
     return init + 1000
   end
 
-  sort!(fat, by=complexity)
+  ext = [(U, complexity(U)) for U in fat]
+  sort!(ext, by=x->x[2])
+  fat = [U for (U, _) in ext]
   for W in fat
     glue = default_covering(X)[W, V2]
     f, g = gluing_morphisms(glue)
     if glue isa SimpleGluing || (glue isa LazyGluing && first(gluing_domains(glue)) isa PrincipalOpenSubset)
       I2 = II(codomain(g))
+      complement_equation(codomain(g)) in I2 && continue
       I = pullback(g)(I2)
-      isone(I) && continue
-      return OOX(V2, U2)(ideal(OO(V2), lifted_numerator.(gens(I))))
+    # isone(I) && continue
+      result = OOX(V2, U2)(ideal(OO(V2), lifted_numerator.(gens(I))))
+      II.cheap_sub_ideals[U2] = result
+      return result
     else
       Z = subscheme(W, II(W))
       pZ = preimage(g, Z, check=false)
       is_empty(pZ) && continue
       ZV = closure(pZ, V2, check=false)
-      return OOX(V2, U2)(ideal(OO(V2), [g for g in OO(V2).(lifted_numerator.(gens(modulus(OO(ZV))))) if !iszero(g)]))
+      result = OOX(V2, U2)(ideal(OO(V2), [g for g in OO(V2).(lifted_numerator.(gens(modulus(OO(ZV))))) if !iszero(g)]))
+      II.cheap_sub_ideals[U2] = result
+      return result
     end
   end
   # If nothing pulls back to this chart, the ideal sheaf is trivial here.
-  return ideal(OO(U2), one(OO(U2)))
+  result = ideal(OO(U2), one(OO(U2)))
+  II.cheap_sub_ideals[U2] = result
+  return result
 end
 
 function cheap_sub_ideal(I::PullbackIdealSheaf, U::AbsAffineScheme)

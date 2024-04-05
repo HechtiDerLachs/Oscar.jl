@@ -299,6 +299,7 @@ end
   U::AbsAffineScheme
   P::Ideal
   F::PreSheafOnScheme
+  cheap_sub_ideals::WeakKeyIdDict{<:AbsAffineScheme, <:Ideal}
 
   function PrimeIdealSheafFromChart(
       X::AbsCoveredScheme,
@@ -313,7 +314,8 @@ end
                       RestrictionType=Map,
                       is_open_func=_is_open_func_for_schemes_without_affine_scheme_open_subscheme(X)
                      )
-    I = new{typeof(X), AbsAffineScheme, Ideal, Map}(X, U, P, Ipre)
+    cheap_sub_ideals = WeakKeyIdDict{AbsAffineScheme, Ideal}()
+    I = new{typeof(X), AbsAffineScheme, Ideal, Map}(X, U, P, Ipre, cheap_sub_ideals)
     return I
   end
 end

@@ -401,15 +401,39 @@ function intersect(D::AbsWeilDivisor, E::AbsWeilDivisor;
   return result
 end
 
+@attr function has_dimension_leq_zero(I::Ideal)
+  is_one(I) && return true
+  return dim(I) <= 0
+end
+
+@attr function has_dimension_leq_zero(I::MPolyLocalizedIdeal)
+  R = base_ring(I)
+  P = base_ring(R)::MPolyRing
+  J = ideal(P, numerator.(gens(I)))
+  has_dimension_leq_zero(J) && return true
+  is_one(I) && return true
+  return dim(I) <= 0
+end
+
+@attr function has_dimension_leq_zero(I::MPolyQuoLocalizedIdeal)
+  R = base_ring(I)
+  P = base_ring(R)::MPolyRing
+  J = ideal(P, lifted_numerator.(gens(I)))
+  has_dimension_leq_zero(J) && return true
+  is_one(I) && return true
+  return dim(I) <= 0
+end
+
+
 function has_dimension_leq_zero(I::AbsIdealSheaf; covering::Covering=default_covering(scheme(I)))
   for U in keys(object_cache(I))
-    dim(I(U)) <= 0 || return false
+    has_dimension_leq_zero(I(U)) || return false
   end
 
   all_patches = patches(covering)
   for U in all_patches
-    if dim(cheap_sub_ideal(I, U)) > 0
-      dim(I(U)) <= 0 || return false
+    if !has_dimension_leq_zero(cheap_sub_ideal(I, U))
+      has_dimension_leq_zero(I(U)) || return false
     end
   end
   return true
@@ -421,8 +445,8 @@ function has_dimension_leq_zero(I::SumIdealSheaf; covering::Covering=default_cov
   if k !== nothing 
     P = J[k]
     U = original_chart(P)
-    if dim(cheap_sub_ideal(I, U)) > 0
-      dim(I(U)) <= 0 || return false
+    if !has_dimension_leq_zero(cheap_sub_ideal(I, U))
+      has_dimension_leq_zero(I(U)) || return false
     end
   end
 
@@ -432,13 +456,13 @@ function has_dimension_leq_zero(I::SumIdealSheaf; covering::Covering=default_cov
   end
 
   for U in common_patches
-    dim(I(U)) <= 0 || return false
+    has_dimension_leq_zero(I(U)) || return false
   end
 
   all_patches = patches(covering)
   for U in all_patches
-    if dim(cheap_sub_ideal(I, U)) > 0
-      dim(I(U)) <= 0 || return false
+    if !has_dimension_leq_zero(cheap_sub_ideal(I, U))
+      has_dimension_leq_zero(I(U)) || return false
     end
   end
   return true
