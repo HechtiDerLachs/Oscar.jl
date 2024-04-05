@@ -416,10 +416,6 @@ function _random_extension(U::AbsAffineScheme, a::Vector{<:FieldElem})
     J = quotient(ideal(OO(U), denominator(f)), ideal(OO(U), numerator(f)))
     I_undef = intersect(I_undef, J)
   end
-  #I_undef = radical(I_undef)
-# @show I_undef
-# @show equidimensional_decomposition_radical(saturated_ideal(I_undef))
-# I_undef = last(equidimensional_decomposition_radical(I_undef))
 
   iszero(I_undef) && error("possible domain of definition is empty")
   min_gens = small_generating_set(I_undef)
@@ -583,7 +579,6 @@ function pushforward(Phi::MorphismFromRationalFunctions, D::WeilDivisor)
   Y = codomain(Phi)
   pushed_comps = IdDict{AbsIdealSheaf, elem_type(coefficient_ring(D))}()
   for I in components(D)
-    @show I
     J = _pushforward_smooth_in_codim_one_along_iso(Phi, I) # Use dispatch here
     pushed_comps[J] = D[I]
   end
