@@ -660,7 +660,11 @@ end
 function preimage(f::AbsLocalizedRingHom, I::Ideal)
   base_ring(I) === codomain(f) || error("ideal must be in the codomain of f")
   Q, proj = quo(codomain(f), I)
-  return kernel(compose(f, proj))
+  result = kernel(compose(f, proj))
+  if has_attribute(I, :is_prime) && get_attribute(I, :is_prime) === true
+    set_attribute!(I, :is_prime=> true)
+  end
+  return result
 end
 
 # For the generic code we route everything through the kernel computation.
@@ -669,6 +673,10 @@ end
 function preimage(f::MPolyAnyMap{<:Any, <:AbsLocalizedRing}, I::Ideal)
   base_ring(I) === codomain(f) || error("ideal must be in the codomain of f")
   Q, proj = quo(codomain(f), I)
-  return kernel(compose(f, proj))
+  result = kernel(compose(f, proj))
+  if has_attribute(I, :is_prime) && get_attribute(I, :is_prime) === true
+    set_attribute!(I, :is_prime=> true)
+  end
+  return result
 end
 
