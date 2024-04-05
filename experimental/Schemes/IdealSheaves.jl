@@ -321,7 +321,9 @@ Replaces the set of generators of the ideal sheaf by a minimal
 set of random linear combinations in every affine patch. 
 """
 function simplify(I::IdealSheaf, cov::Covering=default_covering(scheme(I)))
-  id_dict = IdDict{AbsAffineScheme, Ideal}(U => ideal(OO(U), small_generating_set(I(U))) for U in patches(cov))
+  id_dict = IdDict{AbsAffineScheme, Ideal}(
+                U => ideal(OO(U), small_generating_set(saturated_ideal(I(U)))) for U in patches(cov)
+              )
   return IdealSheaf(scheme(I), id_dict; check=false)
 end
 
@@ -1577,7 +1579,7 @@ end
 original_ideal_sheaf(I::SimplifiedIdealSheaf) = I.orig
 
 function produce_object(I::SimplifiedIdealSheaf, U::AbsAffineScheme)
-  return ideal(OO(U), small_generating_set(original_ideal_sheaf(I)(U)))
+  return ideal(OO(U), small_generating_set(saturated_ideal(original_ideal_sheaf(I)(U))))
 end
 
 ### PullbackIdealSheaf

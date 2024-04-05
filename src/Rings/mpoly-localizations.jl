@@ -3201,7 +3201,8 @@ function small_generating_set(I::MPolyLocalizedIdeal{<:MPolyLocRing{<:Field, <:F
                         <:MPolyPowersOfElement}})
   L = base_ring(I)
   R = base_ring(L)
-  I_min = L.(small_generating_set(saturated_ideal(I)))
+  #I_min = L.(small_generating_set(saturated_ideal(I)))
+  I_min = L.(small_generating_set(ideal(R, numerator.(gens(I)))))
   return filter(!iszero, I_min)
 end
 
