@@ -860,6 +860,16 @@ function iszero(a::MPolyQuoLocRingElem)
   return lift(a) in modulus(parent(a))
 end
 
+function iszero(a::MPolyQuoLocRingElem{<:Any, <:Any, <:Any, <:Any, <:MPolyComplementOfPrimeIdeal})
+  # In case that the original quotient ring A is an integral domain
+  # the localization map is injective and a is zero iff its numerator is zero.
+  I = modulus(underlying_quotient(parent(a)))
+  if has_attribute(I, :is_prime) && get_attribute(I, :is_prime) === true
+    return lifted_numerator(a) in I
+  end
+  return lift(a) in modulus(parent(a))
+end
+
 ### enhancement of the arithmetic
 function reduce_fraction(f::MPolyQuoLocRingElem{BRT, BRET, RT, RET, MST}) where {BRT, BRET, RT, RET, MST<:MPolyPowersOfElement}
   return f # Disable reduction here, because it slows down arithmetic.
@@ -1296,6 +1306,24 @@ function _as_affine_algebra(
   return id
 end
 
+@attr MPolyIdeal function kernel(
+    f::MPolyAnyMap{<:MPolyRing, 
+                   <:MPolyQuoLocRing{<:Any, <:Any, <:Any, <:Any,
+                                     <:MPolyPowersOfElement}})
+  id, _ = _as_affine_algebra_with_many_variables(codomain(f))
+  g = hom(domain(f), codomain(id), id.(f.(gens(domain(f)))))
+  return kernel(g)
+end
+
+@attr MPolyQuoIdeal function kernel(
+    f::MPolyAnyMap{<:MPolyQuoRing, 
+                   <:MPolyQuoLocRing{<:Any, <:Any, <:Any, <:Any,
+                                     <:MPolyPowersOfElement}})
+  id, _ = _as_affine_algebra_with_many_variables(codomain(f))
+  g = hom(domain(f), codomain(id), id.(f.(gens(domain(f)))); check=false)
+  return kernel(g)
+end
+
 ### The following method is also required for the internals of the generic 
 # kernel routine for localized rings.
 @attr MPolyIdeal function kernel(f::MPolyAnyMap{<:MPolyRing, <:MPolyQuoLocRing})
@@ -1305,8 +1333,16 @@ end
   R = base_ring(L)
   J = saturated_ideal(I)
   d = [lifted_denominator(g) for g in f.(gens(domain(f)))]
-  W = MPolyQuoLocRing(R, modulus(underlying_quotient(L)), MPolyPowersOfElement(R, d))
-  id =  _as_affine_algebra(W)
+  for a in d
+      @show length(factor(a))
+  end
+  S = MPolyPowersOfElement(R, d)
+  S = simplify(S)
+  for a in denominators(S)
+      @show length(terms(a))
+  end
+  W = MPolyQuoLocRing(R, modulus(underlying_quotient(L)), S)
+  id, _ =  _as_affine_algebra_with_many_variables(W)
   A = codomain(id)
   h = hom(P, A, elem_type(A)[id(W(f(x), check=false)) for x in gens(P)], check=false)
   gg = Vector{elem_type(A)}(id.(W.(gens(J))))
@@ -2028,28 +2064,30 @@ end
 # because of massive checks for `iszero` due to memory 
 # management.
 function (f::Oscar.MPolyAnyMap{<:MPolyRing, <:MPolyQuoLocRing, <:Nothing})(a::MPolyRingElem)
-  if !has_attribute(f, :lifted_map)
+  g = get_attribute!(f, :lifted_map) do
     S = domain(f)
     W = codomain(f)
     L = localized_ring(W)
-    g = hom(S, L, lift.(f.img_gens), check=false)
-    set_attribute!(f, :lifted_map, g)
-  end
-  g = get_attribute(f, :lifted_map)
-  return codomain(f)(g(a), check=false)
+    hom(S, L, lift.(f.img_gens), check=false)
+  end::Map{typeof(domain(f)), typeof(localized_ring(codomain(f)))}
+  b = g(a)::MPolyLocRingElem
+  return codomain(f)(numerator(b), denominator(b), check=false)
 end
 
+#=
 function (f::Oscar.MPolyAnyMap{<:MPolyRing, <:MPolyQuoLocRing, <:MPolyQuoLocalizedRingHom})(a::MPolyRingElem)
-  if !has_attribute(f, :lifted_map)
+  g = get_atttribute!(f, :lifted_map) do
     S = domain(f)
     W = codomain(f)
     L = localized_ring(W)
     g = hom(S, L, x -> lift(f.coeff_map(x)), lift.(f.img_gens), check=false)
     set_attribute!(f, :lifted_map, g)
-  end
-  g = get_attribute(f, :lifted_map)
-  return codomain(f)(g(a), check=false)
+  end::Map{typeof(domain(f)), typeof(localized_ring(codomain(f)))}
+
+  b = g(a)::MPolyLocRingElem
+  return codomain(f)(numerator(b), denominator(b), check=false)
 end
+=#
 
 function vector_space(kk::Field, W::MPolyQuoLocRing;
     ordering::MonomialOrdering=degrevlex(gens(base_ring(W)))
@@ -2181,7 +2219,8 @@ end
     a = Q(phi(lifted_numerator(g)))
     isone(lifted_denominator(g)) && return a
     b = Q(phi(lifted_denominator(g)))
-    success, c = divides(a, b)
+    #success, c = divides(a, b)
+    success, c = _divides_hack(a, b)
     success || error("element can not be mapped")
     return c
   end
@@ -2213,7 +2252,8 @@ end
     a = Q(phi(lifted_numerator(g)))
     isone(lifted_denominator(g)) && return a
     b = Q(phi(lifted_denominator(g)))
-    success, c = divides(a, b)
+    #success, c = divides(a, b)
+    success, c = _divides_hack(a, b)
     success || error("element can not be mapped")
     return c
   end
