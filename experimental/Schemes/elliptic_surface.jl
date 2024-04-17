@@ -2094,7 +2094,11 @@ function _pushforward_lattice_along_isomorphism(step::MorphismFromRationalFuncti
     end
   end
 
-  return WeilDivisor[result[D] for D in lat_X]
+  res = WeilDivisor[result[D] for D in lat_X]
+  for a in res
+    set_attribute!(first(components(a)), :_self_intersection, -2)
+  end
+  return res
 end
 
 #=
