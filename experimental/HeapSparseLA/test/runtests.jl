@@ -143,3 +143,5 @@ end
   @test T0*B0 == A
 end
 
+include("CombinatorialNumberSystem.jl")
+include("VietorisRipsComplex.jl")

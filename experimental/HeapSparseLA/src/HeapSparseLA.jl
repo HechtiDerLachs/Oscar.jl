@@ -3,6 +3,7 @@
 # for sorting is expensive.
 include("Types.jl")
 include("HeapDictSRow.jl")
+include("VietorisRipsComplex.jl")
 
 ### `HeapNode`
 # A minimal data structure for nodes in binary trees holding the data
