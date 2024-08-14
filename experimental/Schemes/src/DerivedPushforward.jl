@@ -32,8 +32,37 @@ function _derived_pushforward(M::SubquoModule)
   d = _regularity_bound(M) - n
   d = (d < 0 ? 0 : d)
 
+  return _derived_pushforward(M, d)
+end
+
+# Method for the multigraded case
+function _derived_pushforward(M::SubquoModule{T}, seq::Vector{T}) where {T <: RingElem}
+  S = base_ring(M)
+  @assert all(parent(x) === S for x in seq)
+  n = length(seq)
+  Sd = graded_free_module(S, [0 for i in 1:n])
+  v = sum(seq[i]*Sd[i] for i in 1:n; init=zero(Sd))
+  kosz = koszul_complex(Oscar.KoszulComplex, v)
+  K = shift(Oscar.DegreeZeroComplex(kosz)[1:n+1], 1)
+
+  res, _ = free_resolution(Oscar.SimpleFreeResolution, M)
+  KoM = hom(K, res)
+  tot = total_complex(KoM)
+  tot_simp = simplify(tot)
+
+  G = grading_group(M)
+  st = strand(tot_simp, zero(G))
+  return st[1]
+end
+
+
+# Method for the standard graded case
+function _derived_pushforward(M::SubquoModule, bound::Int)
+  S = base_ring(M)
+  n = ngens(S)-1
+
   Sd = graded_free_module(S, [0 for i in 1:ngens(S)])
-  v = sum(x^d*Sd[i] for (i, x) in enumerate(gens(S)); init=zero(Sd))
+  v = sum(x^bound*Sd[i] for (i, x) in enumerate(gens(S)); init=zero(Sd))
   kosz = koszul_complex(Oscar.KoszulComplex, v)
   K = shift(Oscar.DegreeZeroComplex(kosz)[1:n+1], 1)
 
