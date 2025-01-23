@@ -18,7 +18,10 @@ function _is_smooth_parallel(X::AbsCoveredScheme)
     focus = ideal(OO(U), has_decomposition_info(default_covering(X)) ? decomposition_info(default_covering(X))[U] : [zero(OO(U))])
     push!(cd, ChartData(U, focus))
   end
+  #result = _deploy_work(cd, workers())
+  #return result
   result = wait_all_parallel(cd)
+  #return result
   return all(a for (a, _) in result)
 end
 
