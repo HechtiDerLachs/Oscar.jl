@@ -151,7 +151,6 @@ function _deploy_work(
   individual_channels = Dict{Int, RemoteChannel}(i => RemoteChannel(()->Channel{Any}(32), i) for i in workers)
   assigned_workers = IdDict{TaskType, Int}()
   futures = Dict{Int, Vector{Future}}()
-  fut_vec = Future[]
   for (i, task) in enumerate(task_list)
     wid = workers[mod(i, w) + 1]
     channel = individual_channels[wid]
@@ -160,7 +159,6 @@ function _deploy_work(
     assigned_workers[task] = wid
     fut = remotecall(_compute, wid, task)
     push!(get!(futures, wid, Future[]), fut)
-    push!(fut_vec, fut)
   end
   return futures
 end
