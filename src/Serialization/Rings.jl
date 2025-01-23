@@ -253,7 +253,6 @@ end
 
 ################################################################################
 # Polynomial Ideals
-
 @register_serialization_type MPolyIdeal
 @register_serialization_type LaurentMPolyIdeal
 @register_serialization_type MPolyLocalizedIdeal

@@ -123,13 +123,6 @@ function load_object(s::DeserializerState, T::Type{Vector{U}}, ::Nothing) where 
   return T(entries)
 end
 
-function load_object(s::DeserializerState, ::Type{Vector{U}}, ::Nothing) where U
-  entries = load_array_node(s) do _
-    load_object(s, U, nothing)
-  end
-  return Vector{U}(entries)
-end
-
 ################################################################################
 # Saving and loading matrices
 @register_serialization_type Matrix
