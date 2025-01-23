@@ -600,8 +600,7 @@ function save_object(s::SerializerState, a::MPolyQuoRingElem)
   save_object(s, lift(a))
 end
 
-function load_object(s::DeserializerState, ::Type{<:MPolyQuoRingElem}, prts::Vector)
-  Q = prts[end]::MPolyQuoRing
+function load_object(s::DeserializerState, ::Type{<:MPolyQuoRingElem}, Q::MPolyQuoRing)
   R = base_ring(Q)
   rep = load_object(s, elem_type(R), R)
   return Q(rep)
