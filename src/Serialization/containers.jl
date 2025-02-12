@@ -46,8 +46,23 @@ end
 # Saving and loading vectors
 @register_serialization_type Vector
 
+function save_type_params(s::SerializerState, T::Type{Vector{S}}, ::Nothing) where S
+  save_data_dict(s) do
+    save_object(s, encode_type(T), :name)
+    save_object(s, encode_type(S), :params)
+  end
+end
+
+function save_type_params(s::SerializerState, T::Type{Vector{U}}, obj::Any) where U
+  save_data_dict(s) do
+    save_object(s, encode_type(T), :name)
+    save_type_params(s, U, obj, :params)
+  end
+end
+
 function load_type_params(s::DeserializerState, T::Type{<: MatVecType})
   !haskey(s, :params) && return T, nothing
+  
   subtype, params = load_node(s, :params) do _
     U = decode_type(s)
     subtype, params = load_type_params(s, U)
@@ -210,26 +225,22 @@ end
 @register_serialization_type NamedTuple
 
 function type_params(obj::T) where T <: NamedTuple
-  return TypeParams(
-    T, 
-    NamedTuple(map(x -> x.first => type_params(x.second), collect(pairs(obj))))
-  )
+  return NamedTuple(map(x -> x.first => type_params(x.second), collect(pairs(obj))))
 end
 
 # Named Tuples need to preserve order so they are handled seperate from Dict
-function save_type_params(s::SerializerState, tp::TypeParams{<:NamedTuple})
-  T = type(tp)
+function save_type_params(s::SerializerState, T::Type{<:NamedTuple}, params::NamedTuple)
   save_data_dict(s) do
     save_object(s, encode_type(T), :name)
     save_data_dict(s, :params) do
       save_data_array(s, :names) do
-        for name in keys(params(tp))
+        for name in keys(params)
           save_object(s, name)
         end
       end
       save_data_array(s, :tuple_params) do
-        for (i, param_tp) in enumerate(values(params(tp)))
-          save_type_params(s, param_tp)
+        for (i, param) in enumerate(values(params))
+          save_type_params(s, fieldtype(T, i), param)
         end
       end
     end
@@ -278,10 +289,7 @@ end
 #   )
 
 function type_params(obj::T) where T <: Dict
-  return TypeParams(
-    T, 
-    map(x -> x.first => type_params(x.second), collect(pairs(obj)))...
-  )
+  return Dict(map(x -> x.first => type_params(x.second), collect(pairs(obj))))
 end
 
 function save_type_params(
@@ -328,6 +336,7 @@ function load_type_params(s::DeserializerState, T::Type{Dict})
       error{"not implemented yet"}
     end
   end
+  
   return Dict{subtype...}, params
 end
 
