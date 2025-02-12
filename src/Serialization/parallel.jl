@@ -113,6 +113,17 @@ function put_type_params(channel::RemoteChannel, tp::TypeParams)
   put_type_params(channel, params(tp))
 end
 
+function put_type_params(
+    channel::RemoteChannel, tp::TypeParams{T, S}
+  ) where {T, S<:Tuple}
+  # only  types that use ids need to be sent to the other processes
+  for obj in params(tp)::Tuple
+    # A dirty hack to get things going somehow...
+    obj isa Pair{Symbol} && serialize_with_id(obj.second) && put_type_params(channel, obj.second)
+    put_type_params(channel, type_params(obj))
+  end
+end
+
 function put_type_params(channel::RemoteChannel, tps::Tuple{Vararg{<:Pair}})
   for tp in tps
     put_type_params(channel, tp.second)
