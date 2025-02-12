@@ -857,11 +857,16 @@ function ^(a::MPolyQuoLocRingElem, i::Integer)
 end
 
 function isone(a::MPolyQuoLocRingElem) 
-  return lifted_numerator(a) - lifted_denominator(a) in modulus(parent(a))
+  result = (lifted_numerator(a) - lifted_denominator(a) in modulus(parent(a)))
+  if result 
+    a.numerator = one(base_ring(parent(a)))
+    a.denominator = one(base_ring(parent(a)))
+  end
+  return result
 end
 
 function iszero(a::MPolyQuoLocRingElem)
-  return lift(a) in modulus(parent(a))
+  return is_zero(lifted_numerator(simplify(a)))
 end
 
 function iszero(a::MPolyQuoLocRingElem{<:Any, <:Any, <:Any, <:Any, <:MPolyComplementOfPrimeIdeal})
@@ -1102,8 +1107,16 @@ function identity_map(W::T) where {T<:MPolyQuoLocRing}
 end
 
 function simplify(a::MPolyQuoLocRingElem)
-  p = simplify(numerator(a))
-  return parent(a)(lift(p), lifted_denominator(a); check=false)
+  is_reduced(a) && return a
+  if lifted_numerator(a) in modulus(parent(a))
+    a.numerator = zero(base_ring(parent(a)))
+    a.denominator = one(base_ring(parent(a)))
+    a.is_reduced = true
+    return a
+  end
+  a.numerator = lift(simplify(numerator(a)))
+  a.is_reduced = true
+  return a
 end
 
 ### we need to overwrite the following method because of the 
@@ -2071,8 +2084,7 @@ function jacobian_matrix(f::MPolyQuoLocRingElem)
   return matrix(L, n, 1, [derivative(f, i) for i=1:n])
 end
 
-function jacobian_matrix(g::Vector{<:MPolyQuoLocRingElem})
-  L = parent(g[1])
+function jacobian_matrix(L::MPolyQuoLocRing, g::Vector{<:MPolyQuoLocRingElem})
   n = nvars(base_ring(L))
   @assert all(x->parent(x) === L, g)
   return matrix(L, n, length(g), [derivative(x, i) for i=1:n for x = g])
@@ -2189,11 +2201,15 @@ function saturation(I::IdealType, J::IdealType) where {IdealType<:Union{MPolyQuo
   A === base_ring(J) || error("ideals must lie in the same ring")
   R = base_ring(A)
 
-  I_sat = saturated_ideal(I)
-  J_sat = saturated_ideal(J)
+  I_sat = _poly_ideal(I)
+  J_sat = _poly_ideal(J)
   K = saturation(I_sat, J_sat)
   return ideal(A, [g for g in A.(gens(K)) if !iszero(g)])
 end
+
+_poly_ideal(I::MPolyQuoIdeal) = saturated_ideal(I)
+_poly_ideal(I::MPolyLocalizedIdeal) = pre_saturated_ideal(I)
+_poly_ideal(I::MPolyQuoLocalizedIdeal) = pre_saturated_ideal(pre_image_ideal(I))
 
 @doc raw"""
     saturation_with_index(I::T, J::T) where T <: Union{ MPolyQuoIdeal, MPolyLocalizedIdeal, MPolyQuoLocalizedIdeal}
@@ -2204,8 +2220,8 @@ function saturation_with_index(I::T,J::T) where T <: Union{ MPolyQuoIdeal, MPoly
   R = base_ring(I)
   R === base_ring(J) || error("Ideals do not live in the same ring.")
 
-  I_sat = saturated_ideal(I)
-  J_sat = saturated_ideal(J)
+  I_sat = _poly_ideal(I)
+  J_sat = _poly_ideal(J)
 
   I_result,k = saturation_with_index(I_sat,J_sat)
   return (ideal(R,gens(I_result)),k)
