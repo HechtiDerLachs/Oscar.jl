@@ -283,6 +283,7 @@ function has_locally_constant_rank_distributed(N0::GeometricGaussNode)
       success, g = fetch(fut)
       R = base_ring(matrix(N))
       _set_modulus!(R, g)
+      @show R
       @assert _has_prepared_modulus(R)
       set_status!(N, :modulus_prepared)
     elseif task == :gather_results
@@ -315,7 +316,9 @@ function _set_modulus!(R::MPolyQuoRing, g::Vector)
   P = base_ring(R)
   ig = IdealGens(g, default_ordering(P); keep_ordering=true, isGB=true)
   ig.isReduced = false
-  modulus(R).gb[default_ordering(P)] = ig
+  @req singular_poly_ring(P) === parent(first(singular_generators(ig))) "singular ring mismatch"
+  #modulus(R).gb[default_ordering(P)] = ig
+  groebner_basis(modulus(R))
 end
 
 function _set_modulus!(R::MPolyQuoLocRing, g::Vector)
@@ -324,7 +327,8 @@ function _set_modulus!(R::MPolyQuoLocRing, g::Vector)
   ig = IdealGens(g, default_ordering(P); keep_ordering=true, isGB=true)
   ig.isReduced = false
   I.gb[default_ordering(P)] = ig
-  modulus(R).saturated_ideal = I
+  #modulus(R).saturated_ideal = I
+  saturated_ideal(modulus(R))
 end
 
 
