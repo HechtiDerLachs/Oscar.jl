@@ -121,11 +121,10 @@ end
 
 function put_type_params(channel::RemoteChannel, obj::T) where T
   # only  types that use ids need to be sent to the other processes
+  put_type_params(channel, type_params(obj))
+
   if serialize_with_id(T)
     put!(channel, obj)
-  else
-    println(obj)
-    put_type_params(channel, type_params(obj))
   end
 end
 

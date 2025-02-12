@@ -708,7 +708,7 @@ type_params(L::MPolyLocRing) = TypeParams(
 
 function save_object(s::SerializerState, L::MPolyLocRing)
   # We need to save something here, because otherwise the serialization is confused.
-  save_data_array(s) do
+  save_data_dict(s) do
     save_object(s, inverted_set(L), :inv_set)
   end
 end
