@@ -599,11 +599,7 @@ end
 
 @register_serialization_type MPolyQuoRingElem
 
-#=
-type_params(a::MPolyQuoRingElem) = Dict(
-                                        :parent => parent(a)
-                                       )
-                                       =#
+type_params(a::MPolyQuoRingElem) = TypeParams(MPolyQuoRingElem, parent(a))
 
 function save_object(s::SerializerState, a::MPolyQuoRingElem)
   save_object(s, lift(a))
@@ -657,7 +653,7 @@ end
 # localizations of polynomial rings
 @register_serialization_type MPolyPowersOfElement
 
-type_params(U::MPolyPowersOfElement) = ring(U)
+type_params(U::MPolyPowersOfElement) = TypeParams(MPolyPowersOfElement, ring(U))
 
 function save_object(s::SerializerState, U::MPolyPowersOfElement)
   save_object(s, denominators(U))
@@ -671,7 +667,7 @@ end
 
 @register_serialization_type MPolyComplementOfPrimeIdeal
 
-type_params(U::MPolyComplementOfPrimeIdeal) = ring(U)
+type_params(U::MPolyComplementOfPrimeIdeal) = TypeParams(MPolyComplementOfPrimeIdeal, ring(U))
 
 function save_object(s::SerializerState, U::MPolyComplementOfPrimeIdeal)
   save_data_dict(s) do
@@ -703,17 +699,22 @@ end
 
 @register_serialization_type MPolyLocRing uses_id
 
-type_params(L::MPolyLocRing) = Dict(:base_ring => base_ring(L), :inv_set => inverted_set(L))
+type_params(L::MPolyLocRing) = TypeParams(
+  MPolyLocRing,
+  :base_ring => base_ring(L),
+  # we dont need base ring here since we have it already
+  :inv_set => TypeParams(typeof(inverted_set(L)), nothing)) 
 
 function save_object(s::SerializerState, L::MPolyLocRing)
   # We need to save something here, because otherwise the serialization is confused.
   save_data_array(s) do
+    save_object(s, inverted_set(L), :inv_set)
   end
 end
 
 function load_object(s::DeserializerState, ::Type{<:MPolyLocRing}, params::Dict)
   R = params[:base_ring]
-  U = params[:inv_set]
+  U = load_object(s, params[:inv_set], R, :inv_set)
   return MPolyLocRing(R, U)
 end
 
@@ -739,10 +740,11 @@ end
 
 @register_serialization_type MPolyQuoLocRing uses_id
 
-type_params(Q::MPolyQuoLocRing) = Dict(
-    :loc_ring=>localized_ring(Q),
-    :quo_ring=>underlying_quotient(Q)
-  )
+type_params(Q::MPolyQuoLocRing) = TypeParams(
+  MPolyQuoLocRing,
+  :loc_ring=>localized_ring(Q),
+  :quo_ring=>underlying_quotient(Q)
+)
 
 function save_object(s::SerializerState, L::MPolyQuoLocRing)
   # We need to save something here, because otherwise the serialization is confused.
