@@ -1670,7 +1670,13 @@ false
 ```
 """
 function ideal_membership(f::T, I::MPolyIdeal{T}; ordering::MonomialOrdering = default_ordering(base_ring(I))) where T
+  is_zero(f) && return true
   Sx = singular_polynomial_ring(I, ordering)
+  sf = Sx(f)
+  if length(f) > 100
+    lsf = Singular.leading_term(sf)
+    Singular.iszero(Singular.reduce(lsf, Singular.lead(singular_groebner_generators(I, ordering)))) || return false
+  end
   return Singular.iszero(Singular.reduce(Sx(f), singular_groebner_generators(I, ordering)))
 end
 Base.:in(f::MPolyRingElem, I::MPolyIdeal) = ideal_membership(f,I)

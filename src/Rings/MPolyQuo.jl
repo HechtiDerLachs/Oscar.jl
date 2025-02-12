@@ -1980,3 +1980,9 @@ function tensor_product(A::MPolyQuoRing, B::MPolyRing; use_product_ordering::Boo
   end
   return res, hom(A, res, pr.(inc_A.(gens(RA))); check=false), hom(B, res, pr.(inc_B.(gens(B))); check = false)
 end
+
+function jacobian_matrix(L::MPolyQuoRing, g::Vector{<:MPolyQuoRingElem})
+  n = nvars(base_ring(L))
+  @assert all(x->parent(x) === L, g)
+  return matrix(L, n, length(g), [derivative(x, i) for i=1:n for x = g])
+end

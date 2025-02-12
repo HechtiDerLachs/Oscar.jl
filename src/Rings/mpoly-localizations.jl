@@ -1880,7 +1880,7 @@ function ideal_membership(
   L = base_ring(I)
   parent(a) == L || return L(a) in I
   b = numerator(a)
-  b in pre_saturated_ideal(I) && return true
+  !isdefined(I, :saturated_ideal) && b in pre_saturated_ideal(I) && return true
   return b in saturated_ideal(I)
 end
 
@@ -2559,11 +2559,15 @@ function jacobian_matrix(f::MPolyLocRingElem)
   return matrix(L, n, 1, [derivative(f, i) for i=1:n])
 end
 
-function jacobian_matrix(g::Vector{<:MPolyLocRingElem})
-  R = parent(g[1])
+function jacobian_matrix(R::MPolyLocRing, g::Vector{<:MPolyLocRingElem})
   n = nvars(base_ring(R))
   @assert all(x->parent(x) == R, g)
   return matrix(R, n, length(g), [derivative(x, i) for i=1:n for x = g])
+end
+
+function jacobian_matrix(g::Vector{<:RingElem})
+  is_empty(g) && error("jacobian matrix of empty vector needs a parent")
+  return jacobian_matrix(parent(first(g)), g)
 end
 
 function _is_integral_domain(R::MPolyLocRing)
