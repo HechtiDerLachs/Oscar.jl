@@ -26,6 +26,9 @@ include("DerivedPushforward.jl")
 include("Resolution_structure.jl")
 include("Resolution_tools.jl")
 
+include("matroid_smoothness_test_types.jl")
+include("matroid_smoothness_test_methods.jl")
+
 
 # Exports
 export CompleteIntersectionGerm
