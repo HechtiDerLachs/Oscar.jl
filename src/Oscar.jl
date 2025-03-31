@@ -164,6 +164,10 @@ function __init__()
   add_verbosity_scope(:IdealSheaves)
 
   add_verbosity_scope(:SchurIndices)
+  
+  add_assertion_scope(:GeometricGauss)
+  add_verbosity_scope(:GeometricGauss)
+
 
   # Pkg.is_manifest_current() returns false if the manifest might be out of date
   # (but might return nothing when there is no project_hash)
