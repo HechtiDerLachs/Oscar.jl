@@ -28,7 +28,13 @@ struct PrepareModulus{RingType} <: ParallelTask
   function PrepareModulus(R::Ring)
     return new{typeof(R)}(R)
   end
+
+  function PrepareModulus{RingType}(R::Ring) where {RingType}
+    return new{RingType}(R)
+  end
 end
+
+@register_serialization_type PrepareModulus
 
 struct ComputeLeaf{MatrixType} <: ParallelTask
   A::MatrixType
