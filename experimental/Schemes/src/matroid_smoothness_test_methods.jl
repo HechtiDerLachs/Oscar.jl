@@ -1,3 +1,4 @@
+using Distributed
 # Internal methods to estimate the complexity of choosing an 
 # entry as pivot.
 _complexity(c::FieldElem) = is_zero(c) ? -1 : 1
@@ -291,7 +292,7 @@ function has_locally_constant_rank_distributed(M::MatrixElem)
 end
 
 function has_locally_constant_rank_distributed(N0::GeometricGaussNode)
-  worker_ids = workers()
+  worker_ids = Distributed.workers()
   n_workers = length(worker_ids)
   futures = Union{Future, Nothing}[nothing for _ in 1:n_workers]
   assigned_tasks = Any[nothing for _ in 1:n_workers]
@@ -826,7 +827,7 @@ function _has_locally_constant_rank_parallel(
     depth::Int=2, width::Int=2
   )
   @vprint :GeometricGauss 2 "exploring whether matrix of size $(size(matrix(N0))) over $(base_ring(matrix(N0))) has locally constant rank...\n"
-  n_workers = length(workers())
+  n_workers = length(Distributed.workers())
   A = matrix(N0)
   R = base_ring(A)
   if is_zero(A)
@@ -988,10 +989,10 @@ function rank_stratification(A::MatrixElem; distributed::Bool=false)
 # catch e
 #   error("distributed computation requested, but the package `Distributed` does not seem to be loaded; consider typing `using Distributed`")
 # end
-  is_one(length(workers())) && is_one(first(workers())) && error("distributed computation requested, but no workers present")
+  is_one(length(Distributed.workers())) && is_one(first(Distributed.workers())) && error("distributed computation requested, but no workers present")
   N0 = GeometricGaussNode(A)
   
-  worker_ids = workers()
+  worker_ids = Distributed.workers()
   n_workers = length(worker_ids)
   futures = Union{Future, Nothing}[nothing for _ in 1:n_workers]
   assigned_tasks = Any[nothing for _ in 1:n_workers]
