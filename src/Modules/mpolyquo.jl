@@ -3,7 +3,7 @@ const AdmissibleSingularQuoRingElem = Union{<:MPolyQuoRingElem{<:MPolyRingElem{<
 ########################################################################
 # The essential three functions:                                       #
 ########################################################################
-@attr Any function kernel(
+@attr Any function kernel_atomic(
     f::FreeModuleHom{DomainType, CodomainType}
   ) where {
            T<:AdmissibleSingularQuoRingElem,
@@ -14,10 +14,18 @@ const AdmissibleSingularQuoRingElem = Union{<:MPolyQuoRingElem{<:MPolyRingElem{<
   return _simple_kernel(f)
 end
 
-function in(v::FreeModElem{T}, I::SubModuleOfFreeModule{T}) where {T <: AdmissibleSingularQuoRingElem}
+function in_atomic(v::FreeModElem{T}, I::SubModuleOfFreeModule{T}) where {T <: AdmissibleSingularQuoRingElem}
   F = ambient_free_module(I)
   @assert parent(v) === F
   return iszero(reduce(v, standard_basis(I, ordering=_default_ordering(F))))
+end
+
+function coordinates_atomic(a::FreeModElem{T}, M::SubModuleOfFreeModule{T}; task=:auto) where {T <: AdmissibleSingularQuoRingElem}
+  if task != :auto && task != :via_transform
+    error("Only task=:via_transform is supported for MonoidAlgebra.")
+  end
+  std, _ = lift_std(M)
+  return coordinates_via_transform(a, std)
 end
 
 ### missing functions which needed to be overwritten
@@ -37,7 +45,7 @@ function singular_module(
     ordering::ModuleOrdering
   )
   Sx = singular_poly_ring(base_ring(F), induced_ring_ordering(ordering))
-  return Singular.FreeModule(Sx, dim(F))
+  return Singular.FreeModule(Sx, ngens(F))
 end
 
 # Overwritten only to call `_default_ordering` instead of `default_ordering` 
@@ -55,7 +63,6 @@ end
 # Overwritten because the original method has the restriction to be for 
 # polynomial rings only. 
 function syzygy_module(F::ModuleGens{T}; sub = FreeMod(base_ring(F.F), length(oscar_generators(F)))) where {T <: AdmissibleSingularQuoRingElem}
-  singular_assure(F)
   # TODO Obtain the Gröbner basis and cache it
   s = Singular.syz(singular_generators(F))
   return SubquoModule(sub, s)
@@ -70,7 +77,6 @@ end
 function standard_basis(F::ModuleGens{T}, reduced::Bool=false) where {T <: AdmissibleSingularQuoRingElem}
   R = base_ring(F)
   @req is_exact_type(elem_type(coefficient_ring(R))) "This functionality is only supported over exact fields."
-  singular_assure(F)
   if reduced
     @assert Singular.has_global_ordering(base_ring(F.SF))
   end
@@ -93,17 +99,12 @@ function normal_form(M::ModuleGens{T}, GB::ModuleGens{T}) where {T <: Admissible
 
   P = isdefined(GB, :quo_GB) ? union(GB, GB.quo_GB) : GB
 
-  singular_assure(P)
-  singular_assure(M)
-
-  red = _reduce(M.S, P.S)
+  red = _reduce(singular_generators(M), singular_generators(P))
   res = ModuleGens(M.F, red)
-  oscar_assure(res)
   return res
 end
 
 function lift_std(M::ModuleGens{T}) where {T <: AdmissibleSingularQuoRingElem}
-  singular_assure(M)
   R = base_ring(M)
   G,Trans_mat = Singular.lift_std(singular_generators(M)) # When Singular supports reduction add it also here
   mg = ModuleGens(M.F, G)
