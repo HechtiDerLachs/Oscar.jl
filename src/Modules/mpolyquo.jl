@@ -10,7 +10,7 @@ const AdmissibleSingularQuoRingElem = Union{<:MPolyQuoRingElem{<:MPolyRingElem{<
            DomainType<:FreeMod{T},
            CodomainType<:FreeMod{T}
           }
-  is_graded(f) && return _graded_kernel(f)
+  #is_graded(f) && return _graded_kernel(f) # This is not doing anything different, except checks
   return _simple_kernel(f)
 end
 
