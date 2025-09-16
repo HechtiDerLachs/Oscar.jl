@@ -83,58 +83,35 @@ function (fac::SimplifiedChainFactory)(d::AbsHyperComplex, Ind::Tuple)
 
     m = nrows(A)
     n = ncols(A)
-    I_inv = sort!([i for (i, _) in ind])
+    I_inv = [i for (i, _) in ind]
     I = [i for i in 1:m if !(i in I_inv)]
-    J_inv = sort!([j for (_, j) in ind])
+    J_inv = [j for (_, j) in ind]
     J = [j for j in 1:n if !(j in J_inv)]
 
     # Assembly of the homotopy matrix
     R = base_ring(Tinv)
-    sorted_inds = sort(ind; by=first)
-    # We need to compute 
-    #   S⁻¹⋅A⋅T = 1_{I_inv, J_inv} ⇔ A = S⋅1_{I_inv, J_inv}⋅T⁻¹
     H = sparse_matrix(R, ncols(A), nrows(A)) # Allocate the result
-    #T_inv_sub = sparse_matrix(R, ncols(A), ncols(A))
-
-    @show matrix(A)
-    @show matrix(S)
-    @show matrix(Tinv)
-    @show matrix(Sinv)*matrix(A)*matrix(T)
+    # A quick form of the inverse of the submatrix A[I_inv, J_inv]:
+    inv_dict = Dict{Int, Tuple{Int, elem_type(R)}}(k=>(i, inv(A[i, k])) for (i, k) in ind)
     for j in J_inv
       for (k, c) in Tinv[j]
-        !(k in J_inv) && continue
-        ind = findfirst(x->x[2]==k, sorted_inds)
-        isnothing(ind) && error("index pair not found")
-        (ii, kk) = sorted_inds[ind]
-        u = A[ii, kk]
-        addmul!(H[j], sparse_row(R, [(l, a) for (l, a) in S[ii] if l in I_inv]), c*inv(u))
+        tmp = get(inv_dict, k, nothing)
+        isnothing(tmp) && continue
+        ii, u = tmp
+        H[j] = addmul!(H[j], sparse_row(R, [(l, a) for (l, a) in S[ii] if l in I_inv]), c*u)
       end
     end
     
-    @assert nrows(H) == ngens(N)
-    @assert ncols(H) == ngens(M)
-    @show N
-    @show M
-    @show M === c[i]
-    @show N === c[next]
-    for (k, row) in enumerate(H)
-      @show k
-      @show row
-      @assert all(i <= ngens(M) for (i, _) in row)
-    end
     h = hom(N, M,
             elem_type(M)[sum(c*M[i] for (i, c) in row; init=zero(M)) 
                                for row in H]; check=false)
     if haskey(fac.maps_from_original, next)
-      @show "has_next"
       h = compose(fac.maps_from_original[next], h)
     end
     if haskey(fac.maps_to_original, i)
-      @show "has_this"
       h = compose(h, fac.maps_to_original[i])
     end
     @assert domain(h) === c[next]
-    @show i
     @assert codomain(h) === c[i]
 
     fac.homotopy_maps[i] = h
@@ -238,58 +215,35 @@ function (fac::SimplifiedChainFactory)(d::AbsHyperComplex, Ind::Tuple)
 
     m = nrows(A)
     n = ncols(A)
-    I_inv = sort!([i for (i, _) in ind])
+    I_inv = [i for (i, _) in ind]
     I = [i for i in 1:m if !(i in I_inv)]
-    J_inv = sort!([j for (_, j) in ind])
+    J_inv = [j for (_, j) in ind]
     J = [j for j in 1:n if !(j in J_inv)]
 
     # Assembly of the homotopy matrix
     R = base_ring(Tinv)
-    sorted_inds = sort(ind; by=first)
-    # We need to compute 
-    #   S⁻¹⋅A⋅T = 1_{I_inv, J_inv} ⇔ A = S⋅1_{I_inv, J_inv}⋅T⁻¹
     H = sparse_matrix(R, ncols(A), nrows(A)) # Allocate the result
-    #T_inv_sub = sparse_matrix(R, ncols(A), ncols(A))
-
-    @show matrix(A)
-    @show matrix(S)
-    @show matrix(Tinv)
-    @show matrix(Sinv)*matrix(A)*matrix(T)
+    # A quick form of the inverse of the submatrix A[I_inv, J_inv]:
+    inv_dict = Dict{Int, Tuple{Int, elem_type(R)}}(k=>(i, inv(A[i, k])) for (i, k) in ind)
     for j in J_inv
       for (k, c) in Tinv[j]
-        !(k in J_inv) && continue
-        ind = findfirst(x->x[2]==k, sorted_inds)
-        isnothing(ind) && error("index pair not found")
-        (ii, kk) = sorted_inds[ind]
-        u = A[ii, kk]
-        addmul!(H[j], sparse_row(R, [(l, a) for (l, a) in S[ii] if l in I_inv]), c*inv(u))
+        tmp = get(inv_dict, k, nothing)
+        isnothing(tmp) && continue
+        ii, u = tmp
+        H[j] = addmul!(H[j], sparse_row(R, [(l, a) for (l, a) in S[ii] if l in I_inv]), c*u)
       end
     end
     
-    @assert nrows(H) == ngens(N)
-    @assert ncols(H) == ngens(M)
-    @show N
-    @show M
-    @show M === c[prev]
-    @show N === c[i]
-    for (k, row) in enumerate(H)
-      @show k
-      @show row
-      @assert all(i <= ngens(M) for (i, _) in row)
-    end
     h = hom(N, M,
             elem_type(M)[sum(c*M[i] for (i, c) in row; init=zero(M)) 
                                for row in H]; check=false)
     if haskey(fac.maps_from_original, i)
-      @show "has_next"
       h = compose(fac.maps_from_original[i], h)
     end
     if haskey(fac.maps_to_original, prev)
-      @show "has_this"
       h = compose(h, fac.maps_to_original[prev])
     end
     @assert domain(h) === c[i]
-    @show i
     @assert codomain(h) === c[prev]
 
     fac.homotopy_maps[prev] = h
