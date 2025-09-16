@@ -4,14 +4,15 @@ struct SimplifiedChainFactory{ChainType} <: HyperComplexChainFactory{ChainType}
   base_change_cache::Dict{Int, Tuple{<:SMat, <:SMat, <:SMat, <:SMat, Vector{Tuple{Int, Int}}}}
   maps_to_original::Dict{Int, <:Map}
   maps_from_original::Dict{Int, <:Map}
+  with_homotopy_maps::Bool
   homotopy_maps::Dict{Int, <:Map}
 
-  function SimplifiedChainFactory(orig::AbsHyperComplex{ChainType}) where {ChainType}
+  function SimplifiedChainFactory(orig::AbsHyperComplex{ChainType}; with_homotopy_maps::Bool=false) where {ChainType}
     d = Dict{Int, Tuple{SMat, SMat}}()
     out_maps = Dict{Int, Map}()
     in_maps = Dict{Int, Map}()
     homotopy_maps = Dict{Int, Map}()
-    return new{ChainType}(orig, d, out_maps, in_maps, homotopy_maps)
+    return new{ChainType}(orig, d, out_maps, in_maps, with_homotopy_maps, homotopy_maps)
   end
 end
 
@@ -87,36 +88,38 @@ function (fac::SimplifiedChainFactory)(d::AbsHyperComplex, Ind::Tuple)
     J = [j for j in 1:n if !(j in J_inv)]
 
     # Assembly of the homotopy matrix
-    R = base_ring(Tinv)
-    H = sparse_matrix(R, ncols(A), nrows(A)) # Allocate the result
-    # A quick form of the inverse of the submatrix A[I_inv, J_inv]:
-    inv_dict = Dict{Int, Tuple{Int, elem_type(R)}}(k=>(i, inv(A[i, k])) for (i, k) in ind)
-    del_row_cache = Dict{Int, sparse_row_type(R)}()
-    for j in J_inv
-      for (k, c) in Tinv[j]
-        tmp = get(inv_dict, k, nothing)
-        isnothing(tmp) && continue
-        ii, u = tmp
-        row = get!(del_row_cache, ii) do
-          sparse_row(R, [(l, a) for (l, a) in S[ii] if l in I_inv])
+    if fac.with_homotopy_maps
+      R = base_ring(Tinv)
+      H = sparse_matrix(R, ncols(A), nrows(A)) # Allocate the result
+      # A quick form of the inverse of the submatrix A[I_inv, J_inv]:
+      inv_dict = Dict{Int, Tuple{Int, elem_type(R)}}(k=>(i, inv(A[i, k])) for (i, k) in ind)
+      del_row_cache = Dict{Int, sparse_row_type(R)}()
+      for j in J_inv
+        for (k, c) in Tinv[j]
+          tmp = get(inv_dict, k, nothing)
+          isnothing(tmp) && continue
+          ii, u = tmp
+          row = get!(del_row_cache, ii) do
+            sparse_row(R, [(l, a) for (l, a) in S[ii] if l in I_inv])
+          end
+          H[j] = addmul!(H[j], copy(row), c*u)
         end
-        H[j] = addmul!(H[j], copy(row), c*u)
       end
-    end
-    
-    h = hom(N, M,
-            elem_type(M)[sum(c*M[i] for (i, c) in row; init=zero(M)) 
-                               for row in H]; check=false)
-    if haskey(fac.maps_from_original, next)
-      h = compose(fac.maps_from_original[next], h)
-    end
-    if haskey(fac.maps_to_original, i)
-      h = compose(h, fac.maps_to_original[i])
-    end
-    @assert domain(h) === c[next]
-    @assert codomain(h) === c[i]
 
-    fac.homotopy_maps[i] = h
+      h = hom(N, M,
+              elem_type(M)[sum(c*M[i] for (i, c) in row; init=zero(M)) 
+                           for row in H]; check=false)
+      if haskey(fac.maps_from_original, next)
+        h = compose(fac.maps_from_original[next], h)
+      end
+      if haskey(fac.maps_to_original, i)
+        h = compose(h, fac.maps_to_original[i])
+      end
+      @assert domain(h) === c[next]
+      @assert codomain(h) === c[i]
+
+      fac.homotopy_maps[i] = h
+    end
 
     # Create the maps to the old complex
     img_gens_dom = elem_type(M)[sum(c*M[j] for (j, c) in S[i]; init=zero(M)) for i in I]
@@ -223,36 +226,38 @@ function (fac::SimplifiedChainFactory)(d::AbsHyperComplex, Ind::Tuple)
     J = [j for j in 1:n if !(j in J_inv)]
 
     # Assembly of the homotopy matrix
-    R = base_ring(Tinv)
-    H = sparse_matrix(R, ncols(A), nrows(A)) # Allocate the result
-    # A quick form of the inverse of the submatrix A[I_inv, J_inv]:
-    inv_dict = Dict{Int, Tuple{Int, elem_type(R)}}(k=>(i, inv(A[i, k])) for (i, k) in ind)
-    del_row_cache = Dict{Int, sparse_row_type(R)}()
-    for j in J_inv
-      for (k, c) in Tinv[j]
-        tmp = get(inv_dict, k, nothing)
-        isnothing(tmp) && continue
-        ii, u = tmp
-        row = get!(del_row_cache, ii) do
-          sparse_row(R, [(l, a) for (l, a) in S[ii] if l in I_inv])
+    if fac.with_homotopy_maps
+      R = base_ring(Tinv)
+      H = sparse_matrix(R, ncols(A), nrows(A)) # Allocate the result
+      # A quick form of the inverse of the submatrix A[I_inv, J_inv]:
+      inv_dict = Dict{Int, Tuple{Int, elem_type(R)}}(k=>(i, inv(A[i, k])) for (i, k) in ind)
+      del_row_cache = Dict{Int, sparse_row_type(R)}()
+      for j in J_inv
+        for (k, c) in Tinv[j]
+          tmp = get(inv_dict, k, nothing)
+          isnothing(tmp) && continue
+          ii, u = tmp
+          row = get!(del_row_cache, ii) do
+            sparse_row(R, [(l, a) for (l, a) in S[ii] if l in I_inv])
+          end
+          H[j] = addmul!(H[j], copy(row), c*u)
         end
-        H[j] = addmul!(H[j], copy(row), c*u)
       end
-    end
-    
-    h = hom(N, M,
-            elem_type(M)[sum(c*M[i] for (i, c) in row; init=zero(M)) 
-                               for row in H]; check=false)
-    if haskey(fac.maps_from_original, i)
-      h = compose(fac.maps_from_original[i], h)
-    end
-    if haskey(fac.maps_to_original, prev)
-      h = compose(h, fac.maps_to_original[prev])
-    end
-    @assert domain(h) === c[i]
-    @assert codomain(h) === c[prev]
 
-    fac.homotopy_maps[prev] = h
+      h = hom(N, M,
+              elem_type(M)[sum(c*M[i] for (i, c) in row; init=zero(M)) 
+                           for row in H]; check=false)
+      if haskey(fac.maps_from_original, i)
+        h = compose(fac.maps_from_original[i], h)
+      end
+      if haskey(fac.maps_to_original, prev)
+        h = compose(h, fac.maps_to_original[prev])
+      end
+      @assert domain(h) === c[i]
+      @assert codomain(h) === c[prev]
+
+      fac.homotopy_maps[prev] = h
+    end
 
     # Create the maps to the old complex
     img_gens_dom = elem_type(M)[sum(c*M[j] for (j, c) in S[i]; init=zero(M)) for i in I]
@@ -633,9 +638,12 @@ function simplify(c::ComplexOfMorphisms)
   return simplify(SimpleComplexWrapper(c))
 end
 
-function simplify(c::AbsHyperComplex{ChainType, MorphismType}) where {ChainType, MorphismType}
+function simplify(
+    c::AbsHyperComplex{ChainType, MorphismType};
+    with_homotopy_maps::Bool=false
+  ) where {ChainType, MorphismType}
   @assert dim(c) == 1 "complex must be one-dimensional"
-  chain_fac = SimplifiedChainFactory(c)
+  chain_fac = SimplifiedChainFactory(c; with_homotopy_maps)
   mor_fac = SimplifiedMapFactory(c)
   upper_bounds = [has_upper_bound(c, 1) ? upper_bound(c, 1) : nothing]
   lower_bounds = [has_lower_bound(c, 1) ? lower_bound(c, 1) : nothing]
@@ -1000,6 +1008,7 @@ up to homotopy this returns the homotopy map
 Use `original_complex` on `d` to get `c`.
 """
 function homotopy_map(d::SimplifiedComplex, i::Int)
+  !chain_factory(d).with_homotopy_maps && error("computation of homotopy maps was disabled for this complex")
   next = direction(d, 1) == :chain ? i-1 : i+1
   prev = direction(d, 1) == :chain ? i+1 : i-1
   d[prev] # Make sure the cache is filled

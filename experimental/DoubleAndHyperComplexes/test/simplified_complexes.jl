@@ -76,6 +76,8 @@ end
   a = [x, one(R), y, z, -2*one(R), w]
   k = Oscar.HomogKoszulComplex(R, a)
   s = simplify(k);
+  @test_throws ErrorException Oscar.homotopy_map(s, 3)
+  s = simplify(k; with_homotopy_maps=true);
 
   for k in [rand(0:length(a)) for _ in 1:3*length(a)]
     s[k]
