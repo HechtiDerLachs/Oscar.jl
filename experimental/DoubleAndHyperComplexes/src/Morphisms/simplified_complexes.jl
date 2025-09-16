@@ -61,11 +61,9 @@ function (fac::SimplifiedChainFactory)(d::AbsHyperComplex, Ind::Tuple)
     @assert domain(outgoing) === c[i]
     @assert codomain(outgoing) === c[next]
     if haskey(fac.maps_from_original, next)
-      @show "next found"
       outgoing = compose(outgoing, fac.maps_from_original[next])
     end
     if haskey(fac.maps_to_original, i)
-      @show "this found"
       outgoing = compose(fac.maps_to_original[i], outgoing)
     end
 
@@ -93,12 +91,16 @@ function (fac::SimplifiedChainFactory)(d::AbsHyperComplex, Ind::Tuple)
     H = sparse_matrix(R, ncols(A), nrows(A)) # Allocate the result
     # A quick form of the inverse of the submatrix A[I_inv, J_inv]:
     inv_dict = Dict{Int, Tuple{Int, elem_type(R)}}(k=>(i, inv(A[i, k])) for (i, k) in ind)
+    del_row_cache = Dict{Int, sparse_row_type(R)}()
     for j in J_inv
       for (k, c) in Tinv[j]
         tmp = get(inv_dict, k, nothing)
         isnothing(tmp) && continue
         ii, u = tmp
-        H[j] = addmul!(H[j], sparse_row(R, [(l, a) for (l, a) in S[ii] if l in I_inv]), c*u)
+        row = get!(del_row_cache, ii) do
+          sparse_row(R, [(l, a) for (l, a) in S[ii] if l in I_inv])
+        end
+        H[j] = addmul!(H[j], copy(row), c*u)
       end
     end
     
@@ -225,12 +227,16 @@ function (fac::SimplifiedChainFactory)(d::AbsHyperComplex, Ind::Tuple)
     H = sparse_matrix(R, ncols(A), nrows(A)) # Allocate the result
     # A quick form of the inverse of the submatrix A[I_inv, J_inv]:
     inv_dict = Dict{Int, Tuple{Int, elem_type(R)}}(k=>(i, inv(A[i, k])) for (i, k) in ind)
+    del_row_cache = Dict{Int, sparse_row_type(R)}()
     for j in J_inv
       for (k, c) in Tinv[j]
         tmp = get(inv_dict, k, nothing)
         isnothing(tmp) && continue
         ii, u = tmp
-        H[j] = addmul!(H[j], sparse_row(R, [(l, a) for (l, a) in S[ii] if l in I_inv]), c*u)
+        row = get!(del_row_cache, ii) do
+          sparse_row(R, [(l, a) for (l, a) in S[ii] if l in I_inv])
+        end
+        H[j] = addmul!(H[j], copy(row), c*u)
       end
     end
     
