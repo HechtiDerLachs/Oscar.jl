@@ -446,6 +446,7 @@ mutable struct ToricCtx
   inclusions::Dict{Tuple{Vector{Int}, Vector{Int}}, AbsHyperComplexMorphism}
   projections::Dict{Tuple{Vector{Int}, Vector{Int}}, AbsHyperComplexMorphism}
   strands::Dict{Vector{Int}, Dict}
+  simplified_strands::IdDict{AbsHyperComplex, AbsHyperComplex}
   strand_inclusions::Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}
   strand_projections::Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}
   cohomology_models::Dict{FinGenAbGroupElem, AbsHyperComplex}
@@ -468,6 +469,7 @@ mutable struct ToricCtx
                Dict{Tuple{Vector{Int}, Vector{Int}}, AbsHyperComplexMorphism}(),
                Dict{Tuple{Vector{Int}, Vector{Int}}, AbsHyperComplexMorphism}(),
                Dict{Vector{Int}, Dict}(),
+               IdDict{AbsHyperComplex, AbsHyperComplex}(),
                Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}(),
                Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}(), 
                Dict{FinGenAbGroupElem, AbsHyperComplex}(),
@@ -526,6 +528,19 @@ function getindex(ctx::ToricCtx, alpha::Vector{Int}, d::FinGenAbGroupElem)
   return get!(strands, d) do
     strand(ctx[alpha], d)[1]
   end
+end
+
+function simplified_strand(ctx::ToricCtx, alpha::Vector{Int}, d::FinGenAbGroupElem)
+  str = ctx[alpha, d]
+  return get!(ctx.simplified_strands, str) do
+    simplify(str; with_homotopy_maps=true)
+  end
+end
+
+function simplified_strand_homotopy(
+    ctx::ToricCtx, alpha::Vector{Int}, d::FinGenAbGroupElem, p::Int
+  )
+  return homotopy_map(simplified_strand(ctx, alpha, d), p)
 end
 
 function cohomology_model(ctx::ToricCtx, d::FinGenAbGroupElem)
