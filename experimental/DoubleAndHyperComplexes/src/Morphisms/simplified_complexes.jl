@@ -975,3 +975,28 @@ function homology(simp::SimplifiedComplex{ChainType}, p::Int, i::Tuple) where {C
 end
 
 homology(simp::SimplifiedComplex{ChainType}, i::Int) where {ChainType <: ModuleFP} = homology(simp, 1, (i,))
+
+@doc raw"""
+    homotopy_map(d::SimplifiedComplex, p::Int)
+
+Given a chain complex `c` and its simplification `d`
+```
+       ∂    ∂
+  Cₚ₋₁ ← Cₚ ← Cₚ₊₁
+  f↓↑t  f↓↑t  f↓↑t
+  Dₚ₋₁ ← Dₚ ← Dₚ₊₁
+```
+up to homotopy this returns the homotopy map 
+``hₚ : Cₚ → Cₚ₊₁`` such that 
+```
+  hₚ ∘ ∂ + ∂ ∘ hₚ₋₁ = id - t ∘ f
+```
+Use `original_complex` on `d` to get `c`.
+"""
+function homotopy_map(d::SimplifiedComplex, i::Int)
+  next = direction(d, 1) == :chain ? i-1 : i+1
+  prev = direction(d, 1) == :chain ? i+1 : i-1
+  d[prev] # Make sure the cache is filled
+  return chain_factory(d).homotopy_maps[prev]
+end
+
