@@ -543,6 +543,19 @@ function simplified_strand_homotopy(
   return homotopy_map(simplified_strand(ctx, alpha, d), p)
 end
 
+function simplified_strand_inclusion(
+    ctx::ToricCtx, alpha::Vector{Int}, d::FinGenAbGroupElem, p::Int
+  )
+  return map_to_original_complex(simplified_strand(ctx, alpha, d))[p]
+end
+
+function simplified_strand_projection(
+    ctx::ToricCtx, alpha::Vector{Int}, d::FinGenAbGroupElem, p::Int
+  )
+  return map_from_original_complex(simplified_strand(ctx, alpha, d))[p]
+end
+
+
 function cohomology_model(ctx::ToricCtx, d::FinGenAbGroupElem)
   get!(ctx.cohomology_models, d) do
     simplify(ctx[_minimal_exponent_vector(ctx, d), d])
@@ -804,6 +817,10 @@ mutable struct ToricCtxWithParams
   inclusions::Dict{Tuple{Vector{Int}, Vector{Int}}, AbsHyperComplexMorphism}
   projections::Dict{Tuple{Vector{Int}, Vector{Int}}, AbsHyperComplexMorphism}
   strands::Dict{Vector{Int}, Dict}
+  simplified_strands::IdDict{AbsHyperComplex, AbsHyperComplex}
+  simplified_strands_to_orig::IdDict{Map, Map}
+  simplified_strands_from_orig::IdDict{Map, Map}
+  simplified_strands_homotopy::IdDict{Map, Map}
   strand_inclusions::Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}
   strand_projections::Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}
   cohomology_models::Dict{FinGenAbGroupElem, AbsHyperComplex}
@@ -822,6 +839,10 @@ mutable struct ToricCtxWithParams
                Dict{Tuple{Vector{Int}, Vector{Int}}, AbsHyperComplexMorphism}(),
                Dict{Tuple{Vector{Int}, Vector{Int}}, AbsHyperComplexMorphism}(),
                Dict{Vector{Int}, Dict}(),
+               IdDict{AbsHyperComplex, AbsHyperComplex}(),
+               IdDict{Map, Map}(),
+               IdDict{Map, Map}(),
+               IdDict{Map, Map}(),
                Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}(),
                Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}(), 
                Dict{FinGenAbGroupElem, AbsHyperComplex}(),
@@ -872,6 +893,56 @@ function getindex(ctx::ToricCtxWithParams, alpha::Vector{Int}, d::FinGenAbGroupE
     res
   end
 end
+
+function simplified_strand(ctx::ToricCtxWithParams, 
+    alpha::Vector{Int}, d::FinGenAbGroupElem
+  )
+  str = simplified_strand(ctx.pure_ctx, alpha, d)
+  return get!(ctx.simplified_strands, str) do
+    change_base_ring(ctx.R, str)[1]
+  end
+end
+
+function simplified_strand_homotopy(
+    ctx::ToricCtxWithParams, alpha::Vector{Int}, d::FinGenAbGroupElem, p::Int
+  )
+  h = simplified_strand_homotopy(ctx.pure_ctx, alpha, d, p)
+  @show h
+  return get!(ctx.simplified_strands_homotopy, h) do
+    change_base_ring(ctx.R, h; 
+                     domain=ctx[alpha, d][p], 
+                     codomain=ctx[alpha, d][p+1]
+                    )[1]
+  end
+end
+
+function simplified_strand_inclusion(
+    ctx::ToricCtxWithParams, alpha::Vector{Int}, d::FinGenAbGroupElem, p::Int
+  )
+  inc = simplified_strand_inclusion(ctx.pure_ctx, alpha, d, p)
+  res = get!(ctx.simplified_strands_to_orig, inc) do
+    change_base_ring(ctx.R, inc; 
+                     domain=simplified_strand(ctx, alpha, d)[p],
+                     codomain=ctx[alpha, d][p]
+                    )[1]
+  end
+  @assert domain(res) === simplified_strand(ctx, alpha, d)[p]
+  @assert codomain(res) === ctx[alpha, d][p]
+  return res
+end
+
+function simplified_strand_projection(
+    ctx::ToricCtxWithParams, alpha::Vector{Int}, d::FinGenAbGroupElem, p::Int
+  )
+  h = simplified_strand_projection(ctx.pure_ctx, alpha, d, p)
+  return get!(ctx.simplified_strands_from_orig, h) do
+    change_base_ring(ctx.R, h;
+                     domain=ctx[alpha, d][p],
+                     codomain=simplified_strand(ctx, alpha, d)[p]
+                    )[1]
+  end
+end
+
 
 function cohomology_model(ctx::ToricCtxWithParams, d::FinGenAbGroupElem)
   get!(ctx.cohomology_models, d) do
