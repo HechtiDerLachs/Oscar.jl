@@ -907,7 +907,6 @@ function simplified_strand_homotopy(
     ctx::ToricCtxWithParams, alpha::Vector{Int}, d::FinGenAbGroupElem, p::Int
   )
   h = simplified_strand_homotopy(ctx.pure_ctx, alpha, d, p)
-  @show h
   return get!(ctx.simplified_strands_homotopy, h) do
     change_base_ring(ctx.R, h; 
                      domain=ctx[alpha, d][p], 
