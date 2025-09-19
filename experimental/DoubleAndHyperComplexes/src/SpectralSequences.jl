@@ -774,7 +774,9 @@ function multiplication_map(
     for (i, g) in enumerate(gens(domain(mon_mult)))
       v = mon_mult(g)
       is_zero(v) && continue
-      img_gens[i] += c*FreeModElem(map_entries(ctx.R, coordinates(v)), cod)
+      # tuned version of 
+      # img_gens[i] += c*FreeModElem(map_entries(ctx.R, coordinates(v)), cod)
+      img_gens[i] = FreeModElem(Hecke.add_scaled_row!(map_entries(ctx.R, coordinates(v)), coordinates(img_gens[i]), c), cod) 
     end
   end
   return hom(dom, cod, img_gens; check=false)
