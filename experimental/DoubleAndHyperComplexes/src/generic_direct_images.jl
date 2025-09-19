@@ -13,7 +13,6 @@ end
 
 function (fac::DirectImageChainFactory{ChainType})(self::AbsHyperComplex, I::Tuple) where {T, ChainType <: FreeMod{T}}
   i = first(I)
-  @show i
   ctx = fac.pfctx
   X = toric_variety(ctx)
   d = dim(X)
@@ -23,8 +22,6 @@ function (fac::DirectImageChainFactory{ChainType})(self::AbsHyperComplex, I::Tup
   macro_offset = 0
   macro_summands = ChainType[]
   while k <= d
-    @show k
-    @show can_compute_index(graded_complex, k + i)
     if !can_compute_index(graded_complex, k + i)
       summand = free_module(ctx.R, 0)
       push!(macro_summands, summand)
@@ -36,19 +33,15 @@ function (fac::DirectImageChainFactory{ChainType})(self::AbsHyperComplex, I::Tup
     micro_ranges = Vector{UnitRange{Int64}}()
     micro_summands = ChainType[]
     for (l, g) in enumerate(gens(graded_complex[i + k]))
-      @show l
       dd = degree(g)
       coh_mod = cohomology_model(ctx, -dd)
       str = coh_mod[-k]
-      @show ngens(str)
       push!(micro_summands, str)
       push!(micro_ranges, macro_offset+micro_offset+1:macro_offset+micro_offset+ngens(str))
       micro_offset += ngens(str)
-      @show micro_offset
     end
     macro_summand = is_empty(micro_summands) ? free_module(ctx.R, 0) : direct_sum(micro_summands)[1]
     macro_offset += ngens(macro_summand)
-    @show macro_offset
     push!(macro_summands, macro_summand)
     push!(ranges, micro_ranges)
     k += 1
@@ -69,7 +62,6 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
   # fill the cache
   self[i]
   self[i-1]
-  @show i
   fac = chain_factory(self)
   ctx = fac.pfctx
   X = toric_variety(ctx)
@@ -83,8 +75,6 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
   macro_img_gens = Dict{Tuple{Int, Int}, Vector{Vector{Tuple{Int, FreeModElem{T}}}}}()
   ranges = fac.ranges[i]
   for (k, macro_range) in enumerate(ranges) # iterating through the domains
-    @show k
-    @show can_compute_index(graded_complex, i+k-1)
     if !can_compute_index(graded_complex, i+k-1)
       #skip
       continue
@@ -105,9 +95,7 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
     #                     |       |
     #                     V       V
     micro_block_inter = Vector{Tuple{Vector{Int}, Vector{Tuple{Int, FreeModElem{T}}}}}()
-    @show macro_range
     for (l, micro_range) in enumerate(macro_range)
-      @show l
       dd = -degree(gen(graded_dom, l))
       min_exp = _minimal_exponent_vector(ctx, dd)
       str = ctx[min_exp, dd]
@@ -153,18 +141,6 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
         end
       end
       u = [(i, v) for (i, v) in u_dict]
-      #=
-      u_projected = Tuple{Int, FreeModElem{T}}[]
-      for (i, v) in u
-        ee = -degree(graded_cod[i])
-        min_exp = _minimal_exponent_vector(ctx, ee)
-        psinv = ctx[e, min_exp, ee][-k+1]
-        pr = cohomology_model_projection(ctx, ee, -k+1)
-        push!(u_projected, (i, pr(psinv(v))))
-      end
-      @show u_projected
-      push!(micro_img_gens, u_projected)
-      =#
       push!(micro_block_lifts, (e, u))
     end
     macro_block_lifts[k, k] = micro_block_lifts
@@ -173,10 +149,6 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
     # fill up the blocks to the right with zeros
     # compute the blocks to the left
     for j in k-1:-1:0 # go through the blocks on the left
-      @show j
-      @show i + j - 1
-      @show can_compute_index(graded_complex, i + j - 1)
-      @show can_compute_index(graded_complex, i + j - 2)
       if !can_compute_index(graded_complex, i + j - 1)
         # skip
         continue
@@ -198,28 +170,29 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
           cech_complex = simplified_strand(ctx, e, ee)
           strand = ctx[e, ee]
           dom = strand[-j]
-          v0 = deepcopy(vv)
+          #v0 = deepcopy(vv)
           if can_compute_map(strand, -j+1)
-            @assert dom === parent(v0)
+            @assert dom === parent(vv)
             cod = strand[-j+1]
             h = simplified_strand_homotopy(ctx, e, ee, -j)
             cech_map = map(strand, -j+1)
             @assert dom === domain(h)
             @assert cod === codomain(h)
             ww = h(vv)
-            v0 = v0 - cech_map(ww)
+            #v0 = v0 - cech_map(ww)
             !is_zero(ww) && push!(w, (l, ww))
           end
+          #=
           if can_compute_map(strand, -j)
             cech_map = map(strand, -j)
             h = simplified_strand_homotopy(ctx, e, ee, -j-1)
             v0 = v0 - h(cech_map(vv))
             @assert is_zero(map(strand, -j)(v0))
           end
+          =#
           k0 = _minimal_exponent_vector(ctx, ee)
-          psinv = ctx[e, k0, ee][-j]
-          pr = cohomology_model_projection(ctx, ee, -j)
-          pr_v0 = pr(psinv(v0))
+          coh_inv = induced_cohomology_map(ctx, e, k0, ee, -j)
+          pr_v0 = coh_inv(simplified_strand_projection(ctx, e, ee, -j)(vv))
           #!is_zero(pr_v0) && push!(v_rem, (l, pr_v0))
           if !is_zero(pr_v0)
             if haskey(v_rem, l)
@@ -260,7 +233,7 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
             www = pp(ww)
             is_zero(www) && continue
             if haskey(u_dict, k)
-              www += u_dict[k]
+              www = parent(www)(Hecke.add_scaled_row!(coordinates(u_dict[k]), coordinates(www), one(base_ring(parent(www)))))
               if is_zero(www) 
                 delete!(u_dict, k)
               else
@@ -272,55 +245,29 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
           end
         end
         u = [(i, v) for (i, v) in u_dict]
-        #=
-        u_projected = Tuple{Int, FreeModElem{T}}[]
-        for (i, v) in u
-          ee = -degree(graded_cod[i])
-          cech_map = map(ctx[e, ee], -j+1)
-          @assert is_zero(cech_map(v))
-          min_exp = _minimal_exponent_vector(ctx, ee)
-          @show e
-          @show min_exp
-          psinv = ctx[e, min_exp, ee][-j+1]
-          pr = cohomology_model_projection(ctx, ee, -j+1)
-          push!(u_projected, (i, pr(psinv(v))))
-        end
-        @show u_projected
-        push!(micro_img_gens, u_projected)
-        =#
         push!(micro_block_lifts_cod, (e, u))
       end
       macro_block_lifts[k, j] = micro_block_lifts_cod
       #macro_img_gens[k, j] = micro_img_gens
     end # filling up the blocks to the left
   end # going through the domain blocks
-  @show keys(macro_img_gens)
   dom = self[i]
   cod = self[i-1]
   img_gens = elem_type(cod)[]
-  for (macro_row_ind, macro_pr) in enumerate(canonical_projections(dom))
-    @show macro_row_ind
+  @time for (macro_row_ind, macro_pr) in enumerate(canonical_projections(dom))
     macro_dom = codomain(macro_pr)
-    @show ngens(macro_dom)
     #for (micro_row_ind, micro_pr) in enumerate(canonical_projections(macro_dom))
       #micro_row_offset = 0
       #micro_dom = codomain(micro_pr)
       for (macro_gen_ind, v) in enumerate(gens(macro_dom))
-        @show macro_gen_ind
         macro_img_gen = zero(cod) # initialize the result for this generator
         for (macro_col_ind, macro_inc) in enumerate(canonical_injections(cod))
           macro_cod = domain(macro_inc)
           micro_img_gen = zero(macro_cod)
-          @show macro_col_ind
-          @show haskey(macro_img_gens, (macro_row_ind, macro_col_ind))
           !haskey(macro_img_gens, (macro_row_ind, macro_col_ind)) && continue
           micro_img_gens = macro_img_gens[macro_row_ind, macro_col_ind]
-          @show length(micro_img_gens)
           block_img_gen = micro_img_gens[macro_gen_ind]
-          @show block_img_gen
           for (ind, v) in block_img_gen
-            @show parent(v) === domain(canonical_injection(macro_cod, ind))
-            @show codomain(canonical_injection(macro_cod, ind)) === cod
             micro_img_gen += canonical_injection(macro_cod, ind)(v)
           end
           macro_img_gen += macro_inc(micro_img_gen)
