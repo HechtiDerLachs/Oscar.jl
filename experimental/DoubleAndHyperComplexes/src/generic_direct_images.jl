@@ -89,6 +89,10 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
       #skip
       continue
     end
+    if !can_compute_index(graded_complex, i+k-2)
+      #skip
+      continue
+    end
     mat_col = k
     mat_row = k 
     graded_dom = graded_complex[i+k-1]
@@ -243,7 +247,6 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
       graded_cod = graded_complex[i+j-2]
       graded_mor = map(graded_complex, i+j-1)
       graded_matrix = sparse_matrix(graded_mor)
-      cod_macro_range = ranges[j]
 
       # move one step forward on that level
       for (e, w) in micro_block_lifts_inter
@@ -292,12 +295,42 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
     end # filling up the blocks to the left
   end # going through the domain blocks
   @show keys(macro_img_gens)
-  img_gens = macro_img_gens[3, 1]
-  
-  # Project the macro_block_lifts to the cohomology modules
-  # and insert them into the big matrix.
-  Z = free_module(R, 0)
-  return hom(Z, Z, elem_type(Z)[])
+  dom = self[i]
+  cod = self[i-1]
+  img_gens = elem_type(cod)[]
+  for (macro_row_ind, macro_pr) in enumerate(canonical_projections(dom))
+    @show macro_row_ind
+    macro_dom = codomain(macro_pr)
+    @show ngens(macro_dom)
+    #for (micro_row_ind, micro_pr) in enumerate(canonical_projections(macro_dom))
+      #micro_row_offset = 0
+      #micro_dom = codomain(micro_pr)
+      for (macro_gen_ind, v) in enumerate(gens(macro_dom))
+        @show macro_gen_ind
+        macro_img_gen = zero(cod) # initialize the result for this generator
+        for (macro_col_ind, macro_inc) in enumerate(canonical_injections(cod))
+          macro_cod = domain(macro_inc)
+          micro_img_gen = zero(macro_cod)
+          @show macro_col_ind
+          @show haskey(macro_img_gens, (macro_row_ind, macro_col_ind))
+          !haskey(macro_img_gens, (macro_row_ind, macro_col_ind)) && continue
+          micro_img_gens = macro_img_gens[macro_row_ind, macro_col_ind]
+          @show length(micro_img_gens)
+          block_img_gen = micro_img_gens[macro_gen_ind]
+          @show block_img_gen
+          for (ind, v) in block_img_gen
+            @show parent(v) === domain(canonical_injection(macro_cod, ind))
+            @show codomain(canonical_injection(macro_cod, ind)) === cod
+            micro_img_gen += canonical_injection(macro_cod, ind)(v)
+          end
+          macro_img_gen += macro_inc(micro_img_gen)
+        end
+        push!(img_gens, macro_img_gen)
+      end
+      #micro_row_offset += ngens(micro_dom)
+    #end
+  end
+  return hom(dom, cod, img_gens)
 end
 
 function can_compute(fac::DirectImageMapFactory, self::AbsHyperComplex, p::Int, i::Tuple)
