@@ -348,13 +348,12 @@ end
 
 function cohomology_model(ctx::PushForwardCtx, d::FinGenAbGroupElem)
   get!(ctx.cohomology_models, d) do
-    simplify(ctx[_minimal_exponent_vector(ctx, d), d])
+    simplified_strand(ctx, _minimal_exponent_vector(ctx, d), d)
   end
 end
 
 function cohomology_model_inclusion(ctx::PushForwardCtx, d::FinGenAbGroupElem, i::Int)
   h = cohomology_model(ctx, d)
-  c = ctx[_minimal_exponent_vector(ctx, d), d]
   to_orig = map_to_original_complex(h)[i]
   @assert domain(to_orig) === h[i]
   return to_orig
@@ -362,7 +361,6 @@ end
 
 function cohomology_model_projection(ctx::PushForwardCtx, d::FinGenAbGroupElem, i::Int)
   h = cohomology_model(ctx, d)
-  c = ctx[_minimal_exponent_vector(ctx, d), d]
   from_orig = map_from_original_complex(h)
   @assert codomain(from_orig) === h
   return from_orig[i]
@@ -449,6 +447,7 @@ mutable struct ToricCtx
   simplified_strands::IdDict{AbsHyperComplex, AbsHyperComplex}
   strand_inclusions::Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}
   strand_projections::Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}
+  induced_cohomology_maps::Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem, Int}, Map}
   cohomology_models::Dict{FinGenAbGroupElem, AbsHyperComplex}
   cohomology_inclusions::Dict{Tuple{FinGenAbGroupElem, Vector{Int}}, AbsHyperComplexMorphism}
   cohomology_projections::Dict{Tuple{FinGenAbGroupElem, Vector{Int}}, AbsHyperComplexMorphism}
@@ -472,6 +471,7 @@ mutable struct ToricCtx
                IdDict{AbsHyperComplex, AbsHyperComplex}(),
                Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}(),
                Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}(), 
+               Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem, Int}, Map}(), 
                Dict{FinGenAbGroupElem, AbsHyperComplex}(),
                Dict{Tuple{FinGenAbGroupElem, Vector{Int}}, AbsHyperComplexMorphism}(),
                Dict{Tuple{FinGenAbGroupElem, Vector{Int}}, AbsHyperComplexMorphism}(),
@@ -537,6 +537,26 @@ function simplified_strand(ctx::ToricCtx, alpha::Vector{Int}, d::FinGenAbGroupEl
   end
 end
 
+function induced_cohomology_map(
+    ctx::ToricCtx, e0::Vector{Int},
+    e1::Vector{Int}, d::FinGenAbGroupElem,
+    i::Int
+  )
+  return get!(ctx.induced_cohomology_maps, (e0, e1, d, i)) do 
+    if all(a <= b for (a, b) in zip(e0, e1))
+      return compose(map_to_original_complex(simplified_strand(ctx, e0, d))[i],
+                     compose(
+                             ctx[e0, e1, d][i],
+                             map_from_original_complex(simplified_strand(ctx, e1, d))[i]
+                            )
+                    )
+    elseif all(a >= b for (a, b) in zip(e0, e1))
+      return inv(induced_cohomology_map(ctx, e1, e0, d, i))
+    else
+      error("not implemented")
+    end
+  end
+end
 function simplified_strand_homotopy(
     ctx::ToricCtx, alpha::Vector{Int}, d::FinGenAbGroupElem, p::Int
   )
@@ -823,6 +843,7 @@ mutable struct ToricCtxWithParams
   simplified_strands_homotopy::IdDict{Map, Map}
   strand_inclusions::Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}
   strand_projections::Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}
+  induced_cohomology_maps::Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem, Int}, Map}
   cohomology_models::Dict{FinGenAbGroupElem, AbsHyperComplex}
   cohomology_inclusions::Dict{Tuple{FinGenAbGroupElem, Vector{Int}}, AbsHyperComplexMorphism}
   cohomology_projections::Dict{Tuple{FinGenAbGroupElem, Vector{Int}}, AbsHyperComplexMorphism}
@@ -845,6 +866,7 @@ mutable struct ToricCtxWithParams
                IdDict{Map, Map}(),
                Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}(),
                Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem}, AbsHyperComplexMorphism}(), 
+               Dict{Tuple{Vector{Int}, Vector{Int}, FinGenAbGroupElem, Int}, Map}(), 
                Dict{FinGenAbGroupElem, AbsHyperComplex}(),
                Dict{Tuple{FinGenAbGroupElem, Vector{Int}}, AbsHyperComplexMorphism}(),
                Dict{Tuple{FinGenAbGroupElem, Vector{Int}}, AbsHyperComplexMorphism}(),
@@ -942,11 +964,23 @@ function simplified_strand_projection(
   end
 end
 
+function induced_cohomology_map(
+    ctx::ToricCtxWithParams, e0::Vector{Int},
+    e1::Vector{Int}, d::FinGenAbGroupElem, 
+    i::Int
+  )
+  return get!(ctx.induced_cohomology_maps, (e0, e1, d, i)) do 
+    change_base_ring(ctx.R, 
+                     induced_cohomology_map(ctx.pure_ctx, e0, e1, d, i);
+                     domain=simplified_strand(ctx, e0, d)[i],
+                     codomain=simplified_strand(ctx, e1, d)[i]
+                    )[1]
+  end
+end
 
 function cohomology_model(ctx::ToricCtxWithParams, d::FinGenAbGroupElem)
   get!(ctx.cohomology_models, d) do
-    res, tr = change_base_ring(ctx.R, cohomology_model(ctx.pure_ctx, d))
-    res
+    simplified_strand(ctx, _minimal_exponent_vector(ctx, d), d)
   end
 end
 
