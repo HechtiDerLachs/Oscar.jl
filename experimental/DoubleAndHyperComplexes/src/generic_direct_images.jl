@@ -59,6 +59,7 @@ struct DirectImageMapFactory{MorphismType} <: HyperComplexMapFactory{MorphismTyp
 
 function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
   i = first(I)
+  @vprint :DirectImages 2 "computing outgoing map from $i\n"
   # fill the cache
   self[i]
   self[i-1]
@@ -75,6 +76,7 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
   macro_img_gens = Dict{Tuple{Int, Int}, Vector{Vector{Tuple{Int, FreeModElem{T}}}}}()
   ranges = fac.ranges[i]
   for (k, macro_range) in enumerate(ranges) # iterating through the domains
+    @vprint :DirectImages 2 "  macro block row $k\n"
     if !can_compute_index(graded_complex, i+k-1)
       #skip
       continue
@@ -95,7 +97,9 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
     #                     |       |
     #                     V       V
     micro_block_inter = Vector{Tuple{Vector{Int}, Vector{Tuple{Int, FreeModElem{T}}}}}()
+    @vprint :DirectImages 2 "  lifting generators...\n"
     for (l, micro_range) in enumerate(macro_range)
+      @vprint :DirectImages 2 "    micro block row $l\n"
       dd = -degree(gen(graded_dom, l))
       min_exp = _minimal_exponent_vector(ctx, dd)
       str = ctx[min_exp, dd]
@@ -103,6 +107,7 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
       micro_dom = str_simp[-k+1]
       from = simplified_strand_inclusion(ctx, min_exp, dd, -k+1)
       @assert codomain(from) === ctx[min_exp, dd][-k+1]
+      @vprint :DirectImages 2 "      $(ngens(micro_dom)) generators\n"
       micro_block_inter = vcat(micro_block_inter, [(min_exp, [(l, from(g))]) for g in gens(micro_dom)])
     end
     macro_block_lifts[k, k+1] = micro_block_inter
@@ -113,7 +118,9 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
     graded_cod = graded_complex[i+k-2]
     graded_mor = map(graded_complex, i+k-1)
     graded_matrix = sparse_matrix(graded_mor)
+    @vprint :DirectImages 2 "  mapping generators...\n"
     for (e, w) in micro_block_inter
+      @vprint :DirectImages 4 "    $e : $w\n"
       u_dict = Dict{Int, FreeModElem{T}}()
       for (l, ww) in w
         dd = -degree(graded_dom[l])
@@ -141,6 +148,7 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
         end
       end
       u = [(i, v) for (i, v) in u_dict]
+      @vprint :DirectImages 4 "      -> $u\n"
       push!(micro_block_lifts, (e, u))
     end
     macro_block_lifts[k, k] = micro_block_lifts
@@ -149,10 +157,14 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
     # fill up the blocks to the right with zeros
     # compute the blocks to the left
     for j in k-1:-1:0 # go through the blocks on the left
+      @vprint :DirectImages 2 "    column macro block $j\n"
       if !can_compute_index(graded_complex, i + j - 1)
         # skip
         continue
       end
+    # if all(isempty, fac.ranges[i-1][1:j])
+    #   break
+    # end
       graded_dom = graded_complex[i+j-1]
       micro_block_lifts_dom = macro_block_lifts[k, j+1]
       micro_block_lifts_inter = Vector{Tuple{Vector{Int}, Vector{Tuple{Int, FreeModElem{T}}}}}() # lifted one step up
@@ -162,16 +174,17 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
 
       # go up the stair
       for (e, v) in micro_block_lifts_dom
+        @vprint :DirectImages 4 "      $e : $v\n"
         w = Vector{Tuple{Int, FreeModElem{T}}}()
-        v_rem = Vector{Tuple{Int, FreeModElem{T}}}()
+        #v_rem = Vector{Tuple{Int, FreeModElem{T}}}()
         v_rem = Dict{Int, FreeModElem{T}}()
         for (l, vv) in v
           ee = -degree(gen(graded_dom, l))
-          cech_complex = simplified_strand(ctx, e, ee)
+          #cech_complex = simplified_strand(ctx, e, ee)
           strand = ctx[e, ee]
           dom = strand[-j]
           #v0 = deepcopy(vv)
-          if can_compute_map(strand, -j+1)
+          if can_compute_map(strand, -j+1) && can_compute_map(graded_complex, i+j-1)
             @assert dom === parent(vv)
             cod = strand[-j+1]
             h = simplified_strand_homotopy(ctx, e, ee, -j)
@@ -190,6 +203,7 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
             @assert is_zero(map(strand, -j)(v0))
           end
           =#
+          is_zero(cohomology_model(ctx, ee)[-j]) && continue
           k0 = _minimal_exponent_vector(ctx, ee)
           coh_inv = induced_cohomology_map(ctx, e, k0, ee, -j)
           pr_v0 = coh_inv(simplified_strand_projection(ctx, e, ee, -j)(vv))
@@ -208,7 +222,9 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
           end
         end
         push!(micro_block_lifts_inter, (e, w))
+        @vprint :DirectImages 4 "        -> $w\n"
         push!(micro_img_gens, [(i, v) for (i, v) in v_rem])
+        @vprint :DirectImages 4 "         + $(last(micro_img_gens))\n"
       end
       macro_img_gens[k, j+1] = micro_img_gens
 
@@ -222,13 +238,15 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
       graded_matrix = sparse_matrix(graded_mor)
 
       # move one step forward on that level
-      for (e, w) in micro_block_lifts_inter
+      @vprint :DirectImages 2 "    moving forward...\n      "
+      for (gen_ind, (e, w)) in enumerate(micro_block_lifts_inter)
+        @vprint :DirectImages 3 "$gen_ind ($(sum(sum(length(c) for (_, c) in coordinates(v); init=0) for (_, v) in w; init=0))) "
+        @vprint :DirectImages 4 "      $e : $w\n"
         u_dict = Dict{Int, FreeModElem{T}}()
         for (l, ww) in w
           mat_row = graded_matrix[l]
+          dd = -degree(graded_dom[l])
           for (k, p) in mat_row
-            dd = -degree(graded_dom[k])
-            strand = ctx[e, dd]
             pp = multiplication_map(ctx, p, e, dd, -j+1)
             www = pp(ww)
             is_zero(www) && continue
@@ -245,8 +263,10 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
           end
         end
         u = [(i, v) for (i, v) in u_dict]
+        @vprint :DirectImages 4 "        -> $u\n"
         push!(micro_block_lifts_cod, (e, u))
       end
+      @vprint :DirectImages 3 "\n"
       macro_block_lifts[k, j] = micro_block_lifts_cod
       #macro_img_gens[k, j] = micro_img_gens
     end # filling up the blocks to the left
@@ -254,7 +274,7 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
   dom = self[i]
   cod = self[i-1]
   img_gens = elem_type(cod)[]
-  @time for (macro_row_ind, macro_pr) in enumerate(canonical_projections(dom))
+  for (macro_row_ind, macro_pr) in enumerate(canonical_projections(dom))
     macro_dom = codomain(macro_pr)
     #for (micro_row_ind, micro_pr) in enumerate(canonical_projections(macro_dom))
       #micro_row_offset = 0
