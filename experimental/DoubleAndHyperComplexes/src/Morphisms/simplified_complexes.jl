@@ -683,13 +683,29 @@ and to the right of that unit. It returns a quintuple
 are mutual inverse matrices such that `Sinv*A*T` is the original matrix 
 put in and `ind` is a `Vector` of pairs `(i, j)` which are the indices 
 of the units in `A` which have been used for elimination.
+
 The optional argument `find_pivot` must either be a function `f`, or an 
 object with overloaded call syntax, which allows for the call 
-`f(A)` to return a pair of indices `(i, j)` such that `A[i, j]` is a 
+`f(A::SMat, done_rows::Vector{Int}, done_columns::Vector{Int})` 
+to return a pair of indices `(i, j)` with `i` not in `done_rows` 
+and `j` not in `done_columens` such that `A[i, j]` is a 
 unit in the `base_ring` of `A` to be used as the next pivot element, 
 or `nothing` if no suitable pivot was found.
 """
-function _simplify_matrix!(A::SMat; find_pivot=nothing)
+function _simplify_matrix!(A::SMat; find_pivot=nothing
+        #= sample for an alternative implementation
+        function(B::SMat, done_rows::Vector{Int}, done_columns::Vector{Int}) 
+          for i in nrows(B):-1:1
+            i in done_rows && continue
+            for (j, c) in B[i]
+              j in done_columns && continue
+              is_unit(c) && return (i, j)
+            end
+          end
+          return nothing
+        end
+        =#
+    )
   R = base_ring(A)
   m = nrows(A)
   n = ncols(A)
@@ -753,7 +769,7 @@ function _simplify_matrix!(A::SMat; find_pivot=nothing)
         end
       end
     else
-      res = find_pivot(A)
+      res = find_pivot(A, done_rows, done_columns)
       if res === nothing
         found_unit = false
       else
