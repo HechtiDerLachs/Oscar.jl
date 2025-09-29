@@ -59,6 +59,7 @@ struct DirectImageMapFactory{MorphismType} <: HyperComplexMapFactory{MorphismTyp
 
 function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
   i = first(I)
+  _sign = is_even(i) ? 1 : -1
   @vprint :DirectImages 2 "computing outgoing map from $i\n"
   # fill the cache
   self[i]
@@ -132,7 +133,7 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
           pp = multiplication_map(ctx, p, e, dd, -k+1)
           @assert -degree(p) == dd - ee
           @assert domain(pp) === parent(ww)
-          www = pp(ww)
+          www = _sign * pp(ww)
           @assert parent(www) === ctx[e, ee][-k+1]
           is_zero(www) && continue
           if haskey(u_dict, kk)
@@ -248,7 +249,7 @@ function (::DirectImageMapFactory)(self::AbsHyperComplex, p::Int, I::Tuple)
           dd = -degree(graded_dom[l])
           for (k, p) in mat_row
             pp = multiplication_map(ctx, p, e, dd, -j+1)
-            www = pp(ww)
+            www = _sign * pp(ww)
             is_zero(www) && continue
             if haskey(u_dict, k)
               www = parent(www)(Hecke.add_scaled_row!(coordinates(u_dict[k]), coordinates(www), one(base_ring(parent(www)))))
