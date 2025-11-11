@@ -14,9 +14,11 @@ function exterior_power(M::SubquoModule, p::Int; cached::Bool=true)
   else
     C = presentation(M)
     phi = map(C, 1)
+    #=
     codomain(phi).S = function _get_symbol()
       return [Symbol("$e") for e in gens(M)]
     end
+    =#
     result, mm = _exterior_power(phi, p)
   end
 
@@ -49,6 +51,7 @@ function exterior_power(M::SubquoModule, p::Int; cached::Bool=true)
   cached && (_exterior_powers(M)[p] = (result, mult_map))
 
   # Set the variable names for printing
+  #=
   orig_symb = ["$(e)" for e in ambient_representatives_generators(M)]
   new_symb = Symbol[]
   if iszero(p)
@@ -64,6 +67,7 @@ function exterior_power(M::SubquoModule, p::Int; cached::Bool=true)
   end
 
   symbols(result) = new_symb
+  =#
   return result, mult_map
 end
 
