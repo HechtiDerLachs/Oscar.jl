@@ -4,16 +4,21 @@ struct SimplifiedChainFactory{ChainType} <: HyperComplexChainFactory{ChainType}
   base_change_cache::Dict{Int, Tuple{<:SMat, <:SMat, <:SMat, <:SMat, Vector{Tuple{Int, Int}}}}
   maps_to_original::Dict{Int, <:Map}
   maps_from_original::Dict{Int, <:Map}
+  pivots::Union{Nothing, Dict{Int, <:Any}}
 
-  function SimplifiedChainFactory(orig::AbsHyperComplex{ChainType}) where {ChainType}
+  function SimplifiedChainFactory(
+      orig::AbsHyperComplex{ChainType};
+      pivots::Union{Nothing, Dict{Int, <:Any}}=nothing
+    ) where {ChainType}
     d = Dict{Int, Tuple{SMat, SMat}}()
     out_maps = Dict{Int, Map}()
     in_maps = Dict{Int, Map}()
-    return new{ChainType}(orig, d, out_maps, in_maps)
+    return new{ChainType}(orig, d, out_maps, in_maps, pivots)
   end
 end
 
 function (fac::SimplifiedChainFactory)(d::AbsHyperComplex, Ind::Tuple)
+  @show "producing simplified entry $Ind"
   i = first(Ind)
   c = original_complex(fac)
 
@@ -67,7 +72,14 @@ function (fac::SimplifiedChainFactory)(d::AbsHyperComplex, Ind::Tuple)
 
     # Simplify for the outgoing morphism
     A = sparse_matrix(outgoing)
-    S, Sinv, T, Tinv, ind = _simplify_matrix!(A)
+    find_pivot = nothing
+    @show fac.pivots
+    if !isnothing(fac.pivots)
+      @show fac.pivots
+      @show i
+      find_pivot = get(fac.pivots::Dict, i, nothing)
+    end
+    S, Sinv, T, Tinv, ind = _simplify_matrix!(A; find_pivot=isnothing(fac.pivots) ? nothing : get(fac.pivots, i, nothing))
     fac.base_change_cache[i] = S, Sinv, T, Tinv, ind
 
     m = nrows(A)
@@ -172,7 +184,14 @@ function (fac::SimplifiedChainFactory)(d::AbsHyperComplex, Ind::Tuple)
 
     # Simplify for the incoming morphism
     A = sparse_matrix(incoming)
-    S, Sinv, T, Tinv, ind = _simplify_matrix!(A)
+    find_pivot = nothing
+    @show fac.pivots
+    if !isnothing(fac.pivots)
+      @show fac.pivots
+      @show prev
+      find_pivot = get(fac.pivots::Dict, prev, nothing)
+    end
+    S, Sinv, T, Tinv, ind = _simplify_matrix!(A; find_pivot=isnothing(fac.pivots) ? nothing : get(fac.pivots, prev, nothing))
 
     m = nrows(A)
     n = ncols(A)
@@ -560,9 +579,13 @@ function simplify(c::ComplexOfMorphisms)
   return simplify(SimpleComplexWrapper(c))
 end
 
-function simplify(c::AbsHyperComplex{ChainType, MorphismType}) where {ChainType, MorphismType}
+function simplify(
+    c::AbsHyperComplex{ChainType, MorphismType};
+    pivots::Union{Nothing, Dict{Int, Any}}=nothing
+  ) where {ChainType, MorphismType}
+  @show "simplifying complex with $pivots"
   @assert dim(c) == 1 "complex must be one-dimensional"
-  chain_fac = SimplifiedChainFactory(c)
+  chain_fac = SimplifiedChainFactory(c; pivots)
   mor_fac = SimplifiedMapFactory(c)
   upper_bounds = [has_upper_bound(c, 1) ? upper_bound(c, 1) : nothing]
   lower_bounds = [has_lower_bound(c, 1) ? lower_bound(c, 1) : nothing]
@@ -609,6 +632,7 @@ unit in the `base_ring` of `A` to be used as the next pivot element,
 or `nothing` if no suitable pivot was found.
 """
 function _simplify_matrix!(A::SMat; find_pivot=nothing)
+  @show find_pivot
   R = base_ring(A)
   m = nrows(A)
   n = ncols(A)
@@ -672,7 +696,7 @@ function _simplify_matrix!(A::SMat; find_pivot=nothing)
         end
       end
     else
-      res = find_pivot(A)
+      res = find_pivot(A, done_rows, done_columns)
       if res === nothing
         found_unit = false
       else
@@ -837,12 +861,18 @@ The simplification is heuristical and includes steps like for example removing
 zero-generators or removing the i-th component of all vectors if those are
 reduced by a relation.
 """
-function simplify(M::SubquoModule)
+function simplify(M::SubquoModule; pivot=nothing)
+  @show "simplifying subquotient with $pivot"
   #res, aug = free_resolution(SimpleFreeResolution, M)
   pres = presentation(M)
   aug = map(pres, 0)
   res = SimpleComplexWrapper(pres[0:1])
-  simp = simplify(res)
+  prep_pivot = nothing
+  if !isnothing(pivot)
+    @show "strategy is not nothing"
+    prep_pivot = Dict{Int, Any}(1=>pivot)
+  end
+  simp = simplify(res; pivots=prep_pivot)
   simp_to_orig = map_to_original_complex(simp)
   orig_to_simp = map_from_original_complex(simp)
   result, Z0_to_result = homology(simp, 0)
