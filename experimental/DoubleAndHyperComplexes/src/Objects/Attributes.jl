@@ -398,7 +398,10 @@ function has_index(c::HyperComplexView, I::Tuple)
 end
 
 function can_compute_index(c::HyperComplexView, I::Tuple)
-  return all(k->(I[k] >= lower_bound(c, k) && I[k] <= upper_bound(c, k)), 1:dim(c))
+  all(k->(I[k] >= lower_bound(c, k) && I[k] <= upper_bound(c, k)), 1:dim(c)) || return false
+  i = collect(I)
+  j = mapping_matrix(c)*i + offset_vector(c)
+  return can_compute_index(original_complex(c), j...)
 end
 
 function map(c::HyperComplexView, p::Int, I::Tuple)
