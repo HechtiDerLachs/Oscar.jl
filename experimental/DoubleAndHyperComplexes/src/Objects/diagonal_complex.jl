@@ -1,16 +1,3 @@
-#helper function; wedges an element of the i-th exterior power of a module M by the element dw of M
-function wedge_morphism(dw,i)
-    M = parent(dw)
-    n = ngens(M)
-    i == 0 && return hom(free_module(base_ring(M),1),M,[dw])
-    codom = exterior_power(M,i+1)[1]
-    wedge = Oscar.wedge_pure_function(codom)
-    i == 1 && return hom(M,codom, [wedge(Tuple([dw,v])) for v in gens(M)])
-    dom = exterior_power(M,i)[1]
-    decomp = Oscar.wedge_generator_decompose_function(dom)
-    return hom(dom,codom,[wedge(Tuple(vcat([dw],collect(decomp(phi))))) for phi in gens(dom)])
-end
-
 ### Production of the chains
 struct DiagonalChainFactory{ChainType} <: HyperComplexChainFactory{ChainType}
   # Fields needed for production
@@ -53,25 +40,33 @@ function (fac::DiagonalMapFactory)(self::AbsHyperComplex, p::Int, i::Tuple)
     projs = map(t -> Oscar.projection(T,t),dom_inds)
     injs = map(t -> Oscar.injection(T,t),codom_inds)
     h = map(T,1)(gens(T[1])[end])[1]
-    R = base_ring(T[1])
-    PolyRing = base_ring(R)
     M_tensor_R = codomain(Oscar.projection(T,(1,0)))
-    decomp = Oscar.tensor_generator_decompose_function(M_tensor_R)
-    M = parent(decomp(M_tensor_R[1])[1])
-    dh = sum(map(i -> derivative(PolyRing(h),PolyRing(gens(R)[i]))*gens(M)[i],1:ngens(M)))
+    M = get_attribute(M_tensor_R, :tensor_product)[1]
+    dh = exterior_derivative(h; parent = M)
     comps = []
     for j1 in 1:length(dom_inds)
         for j2 in 1:length(codom_inds)
+        	@show dom_inds[j1],codom_inds[j2]
             proj = projs[j1]
             dom = codomain(proj)
             inj = injs[j2]
             codom = domain(inj)
             disc = (collect(codom_inds[j2]) - collect(dom_inds[j1]))[2]
             if disc == 0
-                wedg = wedge_morphism(dh,dom_inds[j1][1])
-                comp = Oscar.tensor_pure_function(codom)
-                decomp = Oscar.tensor_generator_decompose_function(dom)
-                m = hom(dom,codom,map(comp,map(g -> (wedg(g[1]),g[2]),map(decomp,gens(dom)))))
+            	@show "there is wedging to do"
+            	dom_power = dom_inds[j1][1]
+            	comp = Oscar.tensor_pure_function(codom)
+                dom_factors = get_attribute(dom, :tensor_product)
+                @show dom_factors
+                codom_factors = get_attribute(codom, :tensor_product)
+                @show codom_factors
+                if dom_power == 0
+        	    	wdg = hom(dom_factors[1], codom_factors[1], [dh])
+        	    else
+        	    	wdg = Oscar.wedge_multiplication_map(dom_factors[1],codom_factors[1],dh)
+        	    end
+        	    id = hom(dom_factors[2],codom_factors[2],gens(codom_factors[2]))
+                m = hom_tensor(dom,codom,[wdg,id])
                 push!(comps,compose(proj,compose(m,inj)))
             else
                 push!(comps, compose(proj,compose(hom(dom,codom,[zero(codom) for w in gens(dom)]),inj)))
