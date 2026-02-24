@@ -132,3 +132,7 @@ end
 # Parent and element types
 elem_type(::Type{SimplicialCohomologyRing{T}}) where {T} = SimplicialCohomologyRingElem{T}
 parent_type(::Type{SimplicialCohomologyRingElem{T}}) where {T} = SimplicialCohomologyRing{T}
+
+
+# Extract the base ring of the cohomology ring
+base_ring(C::SimplicialCohomologyRing) = base_ring(simplicial_co_complex(C))
