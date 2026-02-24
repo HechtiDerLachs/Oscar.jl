@@ -139,4 +139,6 @@ function +(a::SimplicialCohomologyRingElem, b::SimplicialCohomologyRingElem)
 end
 
 
-
+# Parent and element types
+elem_type(::Type{SimplicialCohomologyRing{T}}) where {T} = SimplicialCohomologyRingElem{T}
+parent_type(::Type{SimplicialCohomologyRingElem{T}}) where {T} = SimplicialCohomologyRing{T}
