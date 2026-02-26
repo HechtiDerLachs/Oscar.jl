@@ -103,6 +103,11 @@ function (A::SimplicialCohomologyRing)(c)
   return(A(R(c)))
 end
 
+function (A::SimplicialCohomologyRing)(c::SimplicialCohomologyRingElem)
+  parent(c) === A || error("wrong parent")
+  return(c)    
+end
+
 function is_zero(a::SimplicialCohomologyRingElem)
   if isnothing(a.homog_elem)
     !isdefined(a, :coeff) && return true
@@ -223,7 +228,12 @@ end
 -(a::SimplicialCohomologyRingElem, b::SimplicialCohomologyRingElem) = a + (-b)
 
 # extract homogeneous parts. We do a set, because we need it for ==
-homogeneous_parts(a::SimplicialCohomologyRingElem) = isnothing(a.homog_elem) ? Set(SimplicialCohomologyRingElem(parent(a), i, m) for (i,m) in pairs(a.coeff)) : Set(a)
+function homogeneous_parts(a::SimplicialCohomologyRingElem)
+  A = parent(a)
+  is_zero(a) && return Set{elem_type(graded_part(A, 0))}()
+  isnothing(a.homog_elem) && return Set(SimplicialCohomologyRingElem(parent(a), i, m) for (i,m) in a.coeff)
+  return Set(a)
+end
 
 # distribute over homogeneous parts
 *(a::SimplicialCohomologyRingElem, b::SimplicialCohomologyRingElem) = (
@@ -263,7 +273,7 @@ parent_type(::Type{SimplicialCohomologyRingElem{T}}) where {T} = SimplicialCohom
 # Base ring and base ring type
 base_ring(C::SimplicialCohomologyRing) = base_ring(simplicial_co_complex(C))
 base_ring_type(::Type{SimplicialCohomologyRingElem{T}}) where {T} = parent_type(T)
-
+base_ring_type(::Type{SimplicialCohomologyRing{T}}) where {T} = parent_type(T)
 # Equality for homogeneous elements is straight foward; for inhomogeneous, do it by sets of homogeneous parts
 function ==(a::SimplicialCohomologyRingElem, b::SimplicialCohomologyRingElem)
   if is_homogeneous_normalized(a) && is_homogeneous_normalized(b)
@@ -364,3 +374,9 @@ function ConformanceTests.generate_element(R::Oscar.SimplicialCohomologyRing{ZZR
     return x
 end
 
+function is_unit(a::SimplicialCohomologyRingElem)
+    if a==one(parent(a)) 
+        return true
+    end   
+    return false
+end
