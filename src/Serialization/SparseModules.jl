@@ -10,14 +10,21 @@ function save_object(s::SerializerState, F::FreeMod)
   save_data_dict(s) do
     #save_object(s, ngens(F), :rank)
     save_object(s, symbols(F), :symbols)
+    if !isnothing(F.d) # if the module is graded
+      save_object(s, F.d::Vector{FinGenAbGroupElem}, :degrees)
+    end
   end
 end
 
 function load_object(s::DeserializerState, ::Type{<:FreeMod}, params::Ring)
   R = params
   symbs = load_object(s, Vector{Symbol}, :symbols)
-  #rk = load_object(s, Int, :rank)
-  return FreeMod(R, symbs)
+  F = FreeMod(R, symbs)
+  if haskey(s, :degrees) # this is the case if the module was graded
+    S = base_ring(F)
+    F.d = load_object(s, Vector{FinGenAbGroupElem}, grading_group(S), :degrees)
+  end
+  return F
 end
 
 @register_serialization_type FreeModElem 
