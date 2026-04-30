@@ -59,8 +59,7 @@ mutable struct SerializerState{T <: OscarSerializer}
   pretty_print::Bool
 end
 
-function begin_node(s::SerializerState, key::Union{Symbol, Nothing})
-  !isnothing(key) && set_key(s, key)
+function begin_node(s::SerializerState)
   if !s.new_level_entry
     if s.pretty_print
       println(s.io, ",")
@@ -75,6 +74,11 @@ function begin_node(s::SerializerState, key::Union{Symbol, Nothing})
     write(s.io, "\"$key\":")
     s.key = nothing
   end
+end
+
+function begin_node(s::SerializerState, key::Union{Symbol, Nothing})
+  !isnothing(key) && set_key(s, key)
+  begin_node(s)
 end
 
 function set_key(s::SerializerState, key::Symbol)
@@ -119,10 +123,23 @@ function save_data_array(f::Function, s::SerializerState,
   _save_data_container(f, s, key, "[", "]")
 end
 
+function save_data_basic(s::SerializerState{IPCSerializer}, x::T,
+                         key::Union{Symbol, Nothing} = nothing) where T <: Union{Bool, Int64, Int32, Int16, Int8, UInt32, UInt16, UInt8}
+  begin_node(s, key)
+  JSON.json(s.io, x)
+end
+
 function save_data_basic(s::SerializerState, x::Any,
                          key::Union{Symbol, Nothing} = nothing)
   begin_node(s, key)
-  data = x isa Bool ? x : string(x)
+  if x isa Bool
+    data = x
+  elseif x isa Integer && (1 - 2^53 <= x <= 2^53 -1 )
+    data = x
+  else
+    data = string(x)
+  end
+
   if s.pretty_print
     print(s.io, "")
     JSON.json(s.io, data)
@@ -139,6 +156,11 @@ function save_data_json(s::SerializerState, jsonstr::Any,
   write(s.io, jsonstr)
 end
 
+function save_base64(s::SerializerState{IPCSerializer}, x::Any)
+  buf = IOBuffer()
+  Serialization.serialize(buf, x)
+  save_data_basic(s, Base64.base64encode(take!(buf)))
+end
 
 function save_as_ref(s::SerializerState, obj::T) where T
   # find ref or create one
@@ -217,6 +239,10 @@ end
 function set_key(s::DeserializerState, key::Union{Symbol, Int})
   @req isnothing(s.key) "Object at Key :$(s.key) hasn't been deserialized yet."
   s.key = key
+end
+
+function load_base64(s::DeserializerState{IPCSerializer})
+  Serialization.deserialize(IOBuffer(Base64.base64decode(s.obj)))
 end
 
 function load_node(f::Function, s::DeserializerState,
