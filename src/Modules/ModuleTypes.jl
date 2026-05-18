@@ -577,14 +577,20 @@ When computed, the corresponding matrix (via `matrix()`) and inverse isomorphism
   # the generators of F
   function FreeModuleHom(
       F::AbstractFreeMod, G::S, a::Vector{ModuleElemType};
-      check::Bool=true
+      check::Bool=true,
+      hom_degree::Union{Nothing, FinGenAbGroupElem}=nothing,
+      generators_map_to_generators::Union{Bool, Nothing}=nothing
     ) where {S<:ModuleFP, ModuleElemType<:ModuleFPElem}
     ###@assert is_graded(F) == is_graded(G)
     @assert all(x->parent(x) === G, a)
     @assert length(a) == ngens(F)
     r = new{typeof(F), typeof(G), Nothing}()
     a=Vector{elem_type(G)}(a)
-    image_module = sub_object(G, a)
+    image_module = Ref{Any}(nothing)
+    get_image_module = function()
+      image_module[] === nothing && (image_module[] = sub_object(G, a))
+      return image_module[]
+    end
     function im_func(x::AbstractFreeModElem)
      # The lines below were an attempt to speed up mapping. 
      # However, it turns out that checking the equality is more 
@@ -610,12 +616,16 @@ When computed, the corresponding matrix (via `matrix()`) and inverse isomorphism
       @assert parent(x) === G
       r.generators_map_to_generators === true && return FreeModElem(coordinates(simplify!(x)), F)
       #c = coordinates(repres(simplify!(x)), image_module)
-      c = coordinates(repres(x), image_module)
+      c = coordinates(repres(x), get_image_module())
       return FreeModElem(c, F)
     end
     r.header = MapHeader{typeof(F), typeof(G)}(F, G, im_func, pr_func)
     r.imgs_of_gens = Vector{elem_type(G)}(a)
-    r.generators_map_to_generators = nothing
+    r.generators_map_to_generators = generators_map_to_generators
+    if hom_degree !== nothing
+      r.d = hom_degree
+      return r
+    end
     return set_grading(r; check)
   end
 
@@ -657,7 +667,9 @@ When computed, the corresponding matrix (via `matrix()`) and inverse isomorphism
 
   function FreeModuleHom(
       F::AbstractFreeMod, G::T2, a::Vector{ModuleElemType}, h::RingMapType;
-      check::Bool=true
+      check::Bool=true,
+      hom_degree::Union{Nothing, FinGenAbGroupElem}=nothing,
+      generators_map_to_generators::Union{Bool, Nothing}=nothing
     ) where {T2, ModuleElemType<:ModuleFPElem, RingMapType}
     ###@assert is_graded(F) == is_graded(G)
     @assert all(x->parent(x) === G, a)
@@ -665,7 +677,11 @@ When computed, the corresponding matrix (via `matrix()`) and inverse isomorphism
     @assert h(one(base_ring(F))) == one(base_ring(G))
     r = new{typeof(F), T2, RingMapType}()
     a=Vector{elem_type(G)}(a)
-    image_module = sub_object(G, a)
+    image_module = Ref{Any}(nothing)
+    get_image_module = function()
+      image_module[] === nothing && (image_module[] = sub_object(G, a))
+      return image_module[]
+    end
     function im_func(x::AbstractFreeModElem)
       iszero(x) && return zero(codomain(r))
       # See the above comment
@@ -685,14 +701,18 @@ When computed, the corresponding matrix (via `matrix()`) and inverse isomorphism
     function pr_func(x)
       @assert parent(x) === G
       #r.generators_map_to_generators === true && return FreeModElem(map_entries(x->preimage(h, x), coordinates(simplify!(x))), F)
-      c = coordinates(repres(x), image_module)
+      c = coordinates(repres(x), get_image_module())
       cc = map_entries(x->preimage(h, x), c)
       return FreeModElem(cc, F)
     end
     r.header = MapHeader{typeof(F), T2}(F, G, im_func, pr_func)
     r.ring_map = h
     r.imgs_of_gens = Vector{elem_type(G)}(a)
-    r.generators_map_to_generators = nothing
+    r.generators_map_to_generators = generators_map_to_generators
+    if hom_degree !== nothing
+      r.d = hom_degree
+      return r
+    end
     return set_grading(r; check)
   end
 
