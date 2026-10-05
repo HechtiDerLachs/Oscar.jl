@@ -908,8 +908,8 @@ mutable struct NewToricCtx
   fine_strand_map_ranks::Dict{Tuple{Int, Int}, Int}
   fine_strand_morphisms::Dict{Tuple{Int, Int}, AbsHyperComplexMorphism}
   simplified_fine_strands::Dict{Int, AbsHyperComplex}
-  support_sets::Dict{Int, Vector{Int}}
   optimal_ks::Dict{Tuple{Int, FinGenAbGroupElem}, Int}
+  support_sets::Dict{Int, Vector{Int}}
   S1::AbsHyperComplex
   cech_gens::Vector{<:MPolyRingElem}
   fine_graded_ring::MPolyRing
@@ -948,8 +948,8 @@ mutable struct NewToricCtx
                Dict{Tuple{Int, Int}, Int}(),
                Dict{Tuple{Int, Int}, AbsHyperComplexMorphism}(),
                Dict{Int, AbsHyperComplex}(),
-               Dict{Int, Vector{Int}}(),
-               Dict{Tuple{Int, FinGenAbGroupElem}, Int}()
+               Dict{Tuple{Int, FinGenAbGroupElem}, Int}(),
+               #Dict{Int, Vector{Int}}(),
               )
   end
 end
@@ -1749,6 +1749,12 @@ end
 # strands anyway, we compute the support set directly and 
 # cache the data obtained on the fly. 
 function support_set(ctx::NewToricCtx, p::Int)
+  if !isdefined(ctx, :support_sets)
+    ctx.support_sets = support_sets_tor(ctx)
+  end
+  return get!(ctx.support_sets, p) do 
+    Int[]
+  end
   return get!(ctx.support_sets, p) do 
     X = toric_variety(ctx)
     S = graded_ring(ctx)
@@ -1772,6 +1778,46 @@ function support_set(ctx::NewToricCtx, p::Int)
     result
   end
 end
+
+# This implements Corollary 1.2 (b) from Eisenbud, Mustata, Stillman: "Cohomology on toric varieties..." from 2000.
+function support_sets_tor(ctx::NewToricCtx)
+  X = toric_variety(ctx)
+  B = irrelevant_ideal(X)
+  S = cox_ring(X)
+  # compute the Alexander dual in the fine graded ring
+  Sf = fine_graded_ring(ctx)
+  Bf = ideal(Sf, elem_type(Sf)[Sf(forget_grading(f)) for f in gens(B)])
+  I = quotient(ideal(Sf, elem_type(Sf)[x^2 for x in gens(Sf)]), Bf)
+  Bf_dual = ideal(Sf, elem_type(Sf)[f for f in gens(I) if is_squarefree(f)])
+  A, _ = quo(Sf, Bf_dual)
+  A_res, _ = free_resolution(Oscar.SimpleFreeResolution, A)
+  n = ngens(S)
+  A_res[n] # fill the cache
+  # Initialize the buckets to throw the results in.
+  result = Dict{Int, Vector{Int}}()
+  # We interpret the formula as follows. Tensoring the resolution with `k` sets 
+  # all differentials to zero. After all, it's a monomial resolution, so the entries 
+  # of the matrices are monomials of positive degree. But then the Tor-module
+  # in a specific degree in the fine grading is zero if and only if the module 
+  # in the free resolution has a generator in that degree. That leaves us with 
+  # going through the generators and collecting the information according to the 
+  # formula.
+  for j in 0:n
+    degs = unique(degrees_of_generators(A_res[j]))
+    for d in degs
+      any(d[i] < 0 for i in 1:n) && continue
+      any(d[i] > 1 for i in 1:n) && continue
+      s = sum(Int(d[i]) for i in 1:n; init=0) # the number #I
+      i = s - j # We're dealing with sheaf cohomology, not local cohomology. Hence no -1.
+      I = get!(result, i) do 
+        Int[]
+      end
+      push!(I, sum(Int(d[i]) << (i-1) for i in 1:n; init=0))
+    end
+  end
+  return result
+end
+
 
 # Here we might have some potential for optimization: The returned 
 # vector is so that the cohomology is contained in a shifted orthant 
