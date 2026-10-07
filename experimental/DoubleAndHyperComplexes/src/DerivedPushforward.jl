@@ -1750,11 +1750,14 @@ end
 # cache the data obtained on the fly. 
 function support_set(ctx::NewToricCtx, p::Int)
   if !isdefined(ctx, :support_sets)
-    ctx.support_sets = support_sets_tor(ctx)
+    ctx.support_sets = Dict{Int, Vector{Int}}()
   end
-  return get!(ctx.support_sets, p) do 
-    Int[]
-  end
+# if !isdefined(ctx, :support_sets)
+#   ctx.support_sets = support_sets_tor(ctx)
+# end
+# return get!(ctx.support_sets, p) do 
+#   Int[]
+# end
   return get!(ctx.support_sets, p) do 
     X = toric_variety(ctx)
     S = graded_ring(ctx)
@@ -1803,16 +1806,24 @@ function support_sets_tor(ctx::NewToricCtx)
   # going through the generators and collecting the information according to the 
   # formula.
   for j in 0:n
+    @show j
     degs = unique(degrees_of_generators(A_res[j]))
     for d in degs
+      @show d
       any(d[i] < 0 for i in 1:n) && continue
       any(d[i] > 1 for i in 1:n) && continue
       s = sum(Int(d[i]) for i in 1:n; init=0) # the number #I
+      @show s
       i = s - j # We're dealing with sheaf cohomology, not local cohomology. Hence no -1.
+      @show i
       I = get!(result, i) do 
         Int[]
       end
-      push!(I, sum(Int(d[i]) << (i-1) for i in 1:n; init=0))
+      ind = sum(Int(d[i]) << (i-1) for i in 1:n; init=0)
+      if ind == 29
+        @show "here!!!!!!!!!!!!!!!!!!!!!!!"
+      end
+      push!(I, ind)
     end
   end
   return result
