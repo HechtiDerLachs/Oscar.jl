@@ -51,3 +51,94 @@ function _binary_vector_to_str(mon::Int)
   return res_str * "]"
 end
 
+### arithmetic
+function deepcopy_internal(a::BinVec, d::IdDict)
+  res = BinVec()
+  res.entries = deepcopy_internal(a.entries, d)
+  return res
+end
+
+function +(a::BinVec, b::BinVec)
+  return addmul!(deepcopy(a), b, 1)
+end
+
+function -(a::BinVec, b::BinVec)
+  return addmul!(deepcopy(a), b, -1)
+end
+
+length(a::BinVec) = length(a.entries)
+
+function addmul!(a::BinVec, b::BinVec, c)
+  result = BinVec()
+  sizehint!(result.entries, length(a)+length(b))
+  i = 1
+  j = 1
+  while !(i>length(a) || j>length(b))
+    p, mi = a.entries[i]
+    q, mj = b.entries[j]
+    if p < q
+      push!(result.entries, (p, mi))
+      i += 1
+      continue
+    elseif q < p
+      if is_one(-c)
+        mj = mj + (is_zero(mj%2) ? 1 : -1)
+      end
+      push!(result.entries, (q, mj))
+      j += 1
+      continue
+    end
+    # p == q
+    if is_one(c)
+      @assert (is_zero(mi%2) && is_one(mj%2)) || (is_one(mi%2) && is_zero(mj%2)) "addition not supported"
+    elseif is_one(-c)
+      @assert (is_zero(mi%2) && is_zero(mj%2)) || (is_one(mi%2) && is_one(mj%2)) "addition not supported"
+    else
+      error("scalar multiplication with scalars different from 1 and -1 not supported")
+    end
+    # in all cases the terms cancel out and we can skip this entry
+    i += 1
+    j += 1
+  end
+  while i <= length(a)
+    push!(result.entries, a.entries[i])
+    i += 1
+  end
+  while j <= length(b)
+    q, mj = b.entries[j]
+    if is_one(-c)
+      mj = mj + (is_zero(mj%2) ? 1 : -1)
+    end
+    push!(result.entries, (q, mj))
+    j += 1
+  end
+
+  return result
+end
+
+function mul!(e::Int, a::BinVec)
+  for (k, (p, mon)) in enumerate(a.entries)
+    @assert is_zero((mon & e) >> 1) "result of multiplication would have a square"
+    a.entries[k] = (p, ((xor(mon, e) >> 1) << 1) + (mon%2 + e%2)%2)
+  end
+  return a
+end
+
+function *(e::Int, a::BinVec)
+  return mul!(e::Int, deepcopy(a))
+end
+
+function -(a::BinVec)
+  return 1*a
+end
+
+lead(a::BinVec) = first(a.entries)
+is_zero(a::BinVec) = is_empty(a.entries)
+
+_binary_vector_lcm(a::Int, b::Int) = ((a >> 1) | (b >> 1)) << 1 + 1
+
+function _binary_vector_divides(a::Int, b::Int)
+  # a: 1100
+  # b: 1010
+  #    0010
+end
