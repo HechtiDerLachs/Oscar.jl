@@ -148,5 +148,13 @@ _binary_vector_lcm(a::UInt, b::UInt) = ((a >> 1) | (b >> 1)) << 1 + 1
 function _binary_vector_divides(a::UInt, b::UInt)
   # a: 1100
   # b: 1010
-  #    0010
+  # c: 0010
+  (~a & b > 1) && return false, b
+  return true, xor(a, b)
 end
+
+function _binary_vector_div(a::UInt, b::UInt)
+  @assert (~a & b < 2) "division error"
+  return xor(a, b)
+end
+
