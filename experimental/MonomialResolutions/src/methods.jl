@@ -1,5 +1,5 @@
 ### Constructors
-function BinVec(pos::Int, exp::Vector{Int}, coeff)
+function BinVec(pos::UInt, exp::Vector{UInt}, coeff)
   return BinVec(pos, _encode_binary_vector(exp, coeff))
 end
 
@@ -16,7 +16,7 @@ function BinVec(v::FreeModElem{T}) where {T<:MPolyRingElem}
 end
 
 function _encode_binary_vector(exp::Vector{Int}, coeff)
-  mon = 0::Int
+  mon = UInt(0)
   if is_one(coeff) 
     mon += 1
   elseif !is_one(-coeff)
@@ -32,7 +32,7 @@ function _encode_binary_vector(exp::Vector{Int}, coeff)
 end
 
 function BinVec(mon::MPolyRingElem)
-  return BinVec(1, _encode_binary_vector(
+  return BinVec(UInt(1), _encode_binary_vector(
                   only(AbstractAlgebra.exponent_vectors(mon)), 
                   only(AbstractAlgebra.coefficients(mon))
                  ))
@@ -42,7 +42,7 @@ function Base.show(io::IO, bv::BinVec)
   print(io, join([_binary_vector_to_str(mon)*"*e_$p" for (p, mon) in bv.entries], " + "))
 end
 
-function _binary_vector_to_str(mon::Int)
+function _binary_vector_to_str(mon::UInt)
   res_str = (is_zero(mon%2) ? "-1" : "1") * "*[" 
   for k in 1:63
     1 << k > mon && break
@@ -116,7 +116,11 @@ function addmul!(a::BinVec, b::BinVec, c)
   return result
 end
 
-function mul!(e::Int, a::BinVec)
+function mul!(e, a::BinVec)
+  return mul!(UInt(e), a)
+end
+
+function mul!(e::UInt, a::BinVec)
   for (k, (p, mon)) in enumerate(a.entries)
     @assert is_zero((mon & e) >> 1) "result of multiplication would have a square"
     a.entries[k] = (p, ((xor(mon, e) >> 1) << 1) + (mon%2 + e%2)%2)
@@ -124,8 +128,12 @@ function mul!(e::Int, a::BinVec)
   return a
 end
 
-function *(e::Int, a::BinVec)
-  return mul!(e::Int, deepcopy(a))
+function *(e, a::BinVec)
+  return UInt(e)*a
+end
+
+function *(e::UInt, a::BinVec)
+  return mul!(e::UInt, deepcopy(a))
 end
 
 function -(a::BinVec)
@@ -135,9 +143,9 @@ end
 lead(a::BinVec) = first(a.entries)
 is_zero(a::BinVec) = is_empty(a.entries)
 
-_binary_vector_lcm(a::Int, b::Int) = ((a >> 1) | (b >> 1)) << 1 + 1
+_binary_vector_lcm(a::UInt, b::UInt) = ((a >> 1) | (b >> 1)) << 1 + 1
 
-function _binary_vector_divides(a::Int, b::Int)
+function _binary_vector_divides(a::UInt, b::UInt)
   # a: 1100
   # b: 1010
   #    0010
