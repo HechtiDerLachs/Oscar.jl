@@ -15,6 +15,8 @@ function BinVec(v::FreeModElem{T}) where {T<:MPolyRingElem}
   return res
 end
 
+# Turn an exponent vector `exp` and a sign `coeff` into 
+# a single `UInt` to be used in `BinVec`s. 
 function _encode_binary_vector(exp::Vector{Int}, coeff)
   mon = UInt(0)
   if is_one(coeff) 
@@ -31,6 +33,7 @@ function _encode_binary_vector(exp::Vector{Int}, coeff)
   return mon
 end
 
+# Constructor from squarefree monomials
 function BinVec(mon::MPolyRingElem)
   return BinVec(UInt(1), _encode_binary_vector(
                   only(AbstractAlgebra.exponent_vectors(mon)), 
@@ -69,6 +72,7 @@ end
 length(a::BinVec) = length(a.entries)
 
 function addmul!(a::BinVec, b::BinVec, c)
+  @assert is_one(c) || is_one(-c) "scalar multiplication by elements different from ±1 is not allowed"
   result = BinVec()
   sizehint!(result.entries, length(a)+length(b))
   i = 1
@@ -81,22 +85,21 @@ function addmul!(a::BinVec, b::BinVec, c)
       i += 1
       continue
     elseif q < p
-      if is_one(-c)
-        mj = mj + (is_zero(mj%2) ? 1 : -1)
-      end
-      push!(result.entries, (q, mj))
+      push!(result.entries, (q, xor(mj, c == -1))) # xor does the change of signs 
       j += 1
       continue
     end
     # p == q
-    if is_one(c)
-      @assert (is_zero(mi%2) && is_one(mj%2)) || (is_one(mi%2) && is_zero(mj%2)) "addition not supported"
-    elseif is_one(-c)
-      @assert (is_zero(mi%2) && is_zero(mj%2)) || (is_one(mi%2) && is_one(mj%2)) "addition not supported"
-    else
-      error("scalar multiplication with scalars different from 1 and -1 not supported")
+    mj_signed = xor(mj, c == -1)
+    tst = xor(mi, mj_signed)
+    @assert tst < 2 "more than one monomial is not allowed per component"
+    if tst == 1 # different signs of the monomials, hence cancellation
+      i += 1
+      j += 1
+      continue
     end
-    # in all cases the terms cancel out and we can skip this entry
+    # both monomials have the same signs, hence we get 2*m = -m over 𝔽₃
+    push!(result.entries, (q, xor(mi, 1)))
     i += 1
     j += 1
   end
@@ -106,10 +109,7 @@ function addmul!(a::BinVec, b::BinVec, c)
   end
   while j <= length(b)
     q, mj = b.entries[j]
-    if is_one(-c)
-      mj = mj + (is_zero(mj%2) ? 1 : -1)
-    end
-    push!(result.entries, (q, mj))
+    push!(result.entries, (q, xor(mj, c == -1)))
     j += 1
   end
 
