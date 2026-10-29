@@ -130,15 +130,27 @@ function addmul!(a::BinVec, b::BinVec, c::UInt)
       continue
     elseif q < p
       @assert (mj & c < 2) "multiplication leads to exponents > 1"
-      push!(result.entries, (q, (mj >> 1 | c >> 1) << 1 + (mj%2 + c%2)%2))
+      mj_c = mj | c # the product up to the first bit
+      mj_c -= mj_c%2 # delete the first bit
+      mj_c += (mj%2 + c%2)%2
+      push!(result.entries, (q, mj_c))
       j += 1
       continue
     end
     # p == q
     @assert (mj & c < 2) "multiplication leads to exponents > 1"
-    nj = (mj >> 1 | c >> 1) << 1 + (mj%2 + c%2)%2
-    @assert xor(mi, nj) == 1 "terms do not cancel"
-    # in all cases the terms cancel out and we can skip this entry
+    mj_c = mj | c # the product up to the first bit
+    mj_c -= mj_c%2 # delete the first bit
+    mj_c += (mj%2 + c%2)%2
+    tst = xor(mi, mj_c)
+    @assert tst < 2 "more than two monomials in one position are not supported"
+    if tst == 1 # the case of cancellation
+      i += 1
+      j += 1
+      continue
+    end
+    # no cancellation, hence arithmetic in 𝔽₃
+    push!(result.entries, (q, xor(mi, 1)))
     i += 1
     j += 1
   end
@@ -148,9 +160,10 @@ function addmul!(a::BinVec, b::BinVec, c::UInt)
   end
   while j <= length(b)
     q, mj = b.entries[j]
-    @assert (mj & c < 2) "multiplication leads to exponents > 1"
-    nj = (mj >> 1 | c >> 1) << 1 + (mj%2 + c%2)%2
-    push!(result.entries, (q, nj))
+    mj_c = mj | c # the product up to the first bit
+    mj_c -= mj_c%2 # delete the first bit
+    mj_c += (mj%2 + c%2)%2
+    push!(result.entries, (q, mj_c))
     j += 1
   end
 
@@ -312,11 +325,7 @@ function _syzygies(gens::Vector{BinVec})
       s = _binary_vector_div(l, m)
       t = _binary_vector_div(l, n)
       rem = s*v
-      if is_zero(t%2)
-        t += 1
-      else
-        t -= 1
-      end
+      t = xor(t, 1) # xor takes care of sign change
       rem = addmul!(rem, w, t)
       new_syz = BinVec([(UInt(i), s), (UInt(j), t)])
       # tail reduction
@@ -327,12 +336,8 @@ function _syzygies(gens::Vector{BinVec})
         q, n = lead(w)
         q != pp && continue # nothing to cancel here
         success, c = _binary_vector_divides(mm, n)
+        c = xor(c, 1) # change sign of c
         !success && continue
-        if is_zero(c%2)
-          c += 1
-        else
-          c -= 1
-        end
         rem = addmul!(rem, w, c)
         push!(new_syz.entries, (UInt(k), c))
       end
