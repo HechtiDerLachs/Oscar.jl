@@ -116,6 +116,51 @@ function addmul!(a::BinVec, b::BinVec, c)
   return result
 end
 
+function addmul!(a::BinVec, b::BinVec, c::UInt)
+  result = BinVec()
+  sizehint!(result.entries, length(a)+length(b))
+  i = 1
+  j = 1
+  while !(i>length(a) || j>length(b))
+    p, mi = a.entries[i]
+    q, mj = b.entries[j]
+    if p < q
+      push!(result.entries, (p, mi))
+      i += 1
+      continue
+    elseif q < p
+      @assert (mj & c < 2) "multiplication leads to exponents > 1"
+      push!(result.entries, (q, (mj >> 1 | c >> 1) << 1 + (mj%2 + c%2)%2))
+      j += 1
+      continue
+    end
+    # p == q
+    @assert (mj & c < 2) "multiplication leads to exponents > 1"
+    nj = (mj >> 1 | c >> 1) << 1 + (mj%2 + c%2)%2
+    @assert xor(mi, nj) == 1 "terms do not cancel"
+    # in all cases the terms cancel out and we can skip this entry
+    i += 1
+    j += 1
+  end
+  while i <= length(a)
+    push!(result.entries, a.entries[i])
+    i += 1
+  end
+  while j <= length(b)
+    q, mj = b.entries[j]
+    @assert (mj & c < 2) "multiplication leads to exponents > 1"
+    nj = (mj >> 1 | c >> 1) << 1 + (mj%2 + c%2)%2
+    push!(result.entries, (q, nj))
+    j += 1
+  end
+
+  return result
+end
+
+function Base.:(==)(a::BinVec, b::BinVec)
+  return a.entries == b.entries
+end
+
 function mul!(e, a::BinVec)
   return mul!(UInt(e), a)
 end
@@ -156,5 +201,155 @@ end
 function _binary_vector_div(a::UInt, b::UInt)
   @assert (~a & b < 2) "division error"
   return xor(a, b)
+end
+
+function groebner_basis!(gens::Vector{BinVec})
+  pairs_todo = [(i, j) for i in 1:length(gens)-1 for j in i+1:length(gens)]
+  counter = 0
+  zero_reductions = 0
+  while !isempty(pairs_todo)
+    counter += 1
+    i, j = pop!(pairs_todo)
+    u = gens[i]
+    v = gens[j]
+    p, m1 = lead(u)
+    q, m2 = lead(v)
+    p != q && continue # no cancellation possible
+    l = _binary_vector_lcm(m1, m2)
+    n1 = _binary_vector_div(l, m1)
+    n2 = _binary_vector_div(l, m2)
+    if is_zero(n2%2)
+      n2 += 1
+    else
+      n2 -= 1
+    end
+    g = n1*u
+    g = addmul!(g, v, n2)
+    g = reduce!(g, gens)
+    if is_zero(g) 
+      zero_reductions += 1
+      continue
+    end
+    n = length(gens)
+    qq, _ = lead(g)
+    append!(pairs_todo, [(i, n+1) for (i, g) in enumerate(gens) if lead(g)[1] == qq])
+    push!(gens, g)
+  end
+  @show counter, zero_reductions
+  return gens
+end
+
+function reduce!(a::BinVec, gens::Vector{BinVec})
+  is_zero(a) && return a
+  for b in gens
+    a = reduce!(a, b)
+    is_zero(a) && return a
+  end
+  return a
+end
+
+function reduce!(a::BinVec, b::BinVec)
+  p, mon = lead(b)
+  down = 1
+  up = length(a)
+  q, _ = last(a.entries)
+  q < p && return a
+  if p == q
+    down = up
+  end
+  q, _ = first(a.entries)
+  q > p && return a
+  if p == q 
+    up = down
+  end
+  while up != down
+    middle = down + div(up - down, 2) + 1
+    q, _ = a.entries[middle]
+    if q == p
+      up = down = middle
+    elseif q < p
+      down = middle
+    else # q > p
+      up = middle - 1
+    end
+  end
+  q, e = a.entries[up]
+  q != p && return a
+  success, fac = _binary_vector_divides(e, mon)
+  !success && return a
+  if is_zero(fac%2)
+    fac += 1
+  else
+    fac -= 1
+  end
+  a = addmul!(a, b, fac)
+  return a
+end
+
+function interreduce!(gens::Vector{BinVec})
+  result = sizehint!(Vector{BinVec}(), size(gens))
+  for (k, v) in enumerate(gens)
+    for g in result
+      reduce!(g, v)
+    end
+    v = reduce!(v, result)
+    is_zero(v) && continue
+    push!(result, v)
+  end
+  return filter!(!is_zero, result)
+end
+
+function _syzygies(gens::Vector{BinVec})
+  result = BinVec[]
+  for (i, v) in enumerate(gens)
+    p, m = lead(v)
+    for j in i+1:length(gens)
+      w = gens[j]
+      q, n = lead(w)
+      q > p && break
+      # compute the s-polynomial and initialize the syzygy
+      l = _binary_vector_lcm(m, n)
+      s = _binary_vector_div(l, m)
+      t = _binary_vector_div(l, n)
+      rem = s*v
+      if is_zero(t%2)
+        t += 1
+      else
+        t -= 1
+      end
+      rem = addmul!(rem, w, t)
+      new_syz = BinVec([(UInt(i), s), (UInt(j), t)])
+      # tail reduction
+      for k in j+1:length(gens)
+        is_zero(rem) && break
+        pp, mm = lead(rem)
+        w = gens[k]
+        q, n = lead(w)
+        q != pp && continue # nothing to cancel here
+        success, c = _binary_vector_divides(mm, n)
+        !success && continue
+        if is_zero(c%2)
+          c += 1
+        else
+          c -= 1
+        end
+        rem = addmul!(rem, w, c)
+        push!(new_syz.entries, (UInt(k), c))
+      end
+      @assert is_zero(rem) "remainder is not zero"
+#     cc = BinVec()
+#     for (p, c) in new_syz.entries
+#       cc = addmul!(cc, gens[p], c)
+#     end
+#     @assert is_zero(cc)
+      push!(result, new_syz)
+    end
+  end
+  return result
+end
+
+function (F::FreeMod)(a::BinVec)
+  R = base_ring(F)
+  return F(sparse_row(R, [(Int(i), (-1)^(e%2)*prod(x^((e >> k)%2) for (k, x) in enumerate(gens(R)); init=one(R))) for (i, e) in a.entries]))
 end
 
