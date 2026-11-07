@@ -1,6 +1,12 @@
 ### Constructors
 function BinVec(pos::UInt, exp::Vector{UInt}, coeff)
-  return BinVec(pos, _encode_binary_vector(exp, coeff))
+  is_zero(coeff) && return BinVec()
+  return BinVec(pos, (exp << 1) | UInt(!is_one(coeff)))
+end
+
+function BinVec(exp::UInt, coeff=1)
+  is_zero(coeff) && return BinVec()
+  return BinVec(UInt(1), (exp << 1) | UInt(!is_one(coeff)))
 end
 
 function BinVec(v::FreeModElem{T}) where {T<:MPolyRingElem}
@@ -46,7 +52,7 @@ function Base.show(io::IO, bv::BinVec)
 end
 
 function _binary_vector_to_str(mon::UInt)
-  res_str = (is_zero(mon%2) ? "-1" : "1") * "*[" 
+  res_str = (is_zero(mon%2) ? "" : "-1*") * "[" 
   for k in 1:63
     1 << k > mon && break
     res_str = res_str * (is_zero((mon >> k)%2) ? "0" : "1")
@@ -217,38 +223,33 @@ function _binary_vector_div(a::UInt, b::UInt)
 end
 
 function groebner_basis!(gens::Vector{BinVec})
+  gens = interreduce!(gens)
   pairs_todo = [(i, j) for i in 1:length(gens)-1 for j in i+1:length(gens)]
   counter = 0
-  zero_reductions = 0
+  nonzero_reductions = 0
   while !isempty(pairs_todo)
     counter += 1
     i, j = pop!(pairs_todo)
     u = gens[i]
     v = gens[j]
+    isone(length(u)) && isone(length(v)) && continue # no tails to produce something new
     p, m1 = lead(u)
     q, m2 = lead(v)
     p != q && continue # no cancellation possible
     l = _binary_vector_lcm(m1, m2)
     n1 = _binary_vector_div(l, m1)
     n2 = _binary_vector_div(l, m2)
-    if is_zero(n2%2)
-      n2 += 1
-    else
-      n2 -= 1
-    end
     g = n1*u
-    g = addmul!(g, v, n2)
+    g = addmul!(g, v, xor(n2, UInt(1)))
     g = reduce!(g, gens)
-    if is_zero(g) 
-      zero_reductions += 1
-      continue
-    end
+    is_zero(g) && continue
     n = length(gens)
     qq, _ = lead(g)
+    nonzero_reductions += 1
     append!(pairs_todo, [(i, n+1) for (i, g) in enumerate(gens) if lead(g)[1] == qq])
     push!(gens, g)
   end
-  @show counter, zero_reductions
+  @show counter, nonzero_reductions
   return gens
 end
 
@@ -262,16 +263,19 @@ function reduce!(a::BinVec, gens::Vector{BinVec})
 end
 
 function reduce!(a::BinVec, b::BinVec)
+  is_zero(b) && return a
+  is_zero(a) && return a
   p, mon = lead(b)
+  # find the index in `a` which has `p`
   down = 1
   up = length(a)
   q, _ = last(a.entries)
-  q < p && return a
-  if p == q
+  q < p && return a # p is out of bounds for `a`, no cancellation possible
+  if p == q # we hit the spot directly
     down = up
   end
   q, _ = first(a.entries)
-  q > p && return a
+  q > p && return a # again: out of bounds
   if p == q 
     up = down
   end
@@ -287,29 +291,62 @@ function reduce!(a::BinVec, b::BinVec)
     end
   end
   q, e = a.entries[up]
-  q != p && return a
+  q != p && return a # no overlap and hence no cancellation
   success, fac = _binary_vector_divides(e, mon)
   !success && return a
-  if is_zero(fac%2)
-    fac += 1
-  else
-    fac -= 1
-  end
-  a = addmul!(a, b, fac)
+  a = addmul!(a, b, xor(fac, UInt(1)))
   return a
 end
 
 function interreduce!(gens::Vector{BinVec})
+  #inds = interreduce!(gens, 1, length(gens))
+  #return gens[inds]
   result = sizehint!(Vector{BinVec}(), size(gens))
   for (k, v) in enumerate(gens)
-    for g in result
-      reduce!(g, v)
+    for (ind, g) in enumerate(result)
+      result[ind] = reduce!(g, v)
     end
+    result = filter!(!is_zero, result)
     v = reduce!(v, result)
     is_zero(v) && continue
     push!(result, v)
   end
-  return filter!(!is_zero, result)
+  return result
+end
+
+function interreduce!(gens::Vector{BinVec}, lower::Int, upper::Int)
+  upper == lower && return is_zero(gens[upper]) ? Int[] : [upper]
+  mid = div(upper + lower, 2)
+  a = interreduce!(gens, lower, mid)
+  b = interreduce!(gens, mid+1, upper)
+  result = sizehint!(Int[], length(a) + length(b))
+  a_sub = sizehint!(Int[], length(a))
+  #ga = gens[a]
+  #gb = gens[b]
+  for i in a
+    f = gens[i]
+    for j in b
+      f = reduce!(f, gens[j])
+      is_zero(f) && break
+    end
+    #f = reduce!(gens[i], gb)
+    is_zero(f) && continue
+    gens[i] = f
+    push!(result, i)
+    push!(a_sub, i)
+  end
+  for j in b
+    f = gens[j]
+    for i in a_sub # we need to compare only against non-zero elements 
+      f = reduce!(f, gens[i])
+      is_zero(f) && break
+    end
+    #f = reduce!(gens[j], ga)
+    is_zero(f) && continue
+    gens[j] = f
+    push!(result, j)
+  end
+  return result
 end
 
 function _syzygies(gens::Vector{BinVec})
@@ -355,6 +392,18 @@ end
 
 function (F::FreeMod)(a::BinVec)
   R = base_ring(F)
+# for (i, e) in a.entries
+#   @show i, e
+#   @show Int(i)
+#   @show (-1)^(e%2)
+#   @show prod(x^((e >> k)%2) for (k, x) in enumerate(gens(R)); init=one(R)) 
+#   for (k, x) in enumerate(gens(R))
+#     @show k, x
+#     @show e >> k
+#     @show e >> k %2
+#     @show x^((e >> k)%2)
+#   end
+# end
   return F(sparse_row(R, [(Int(i), (-1)^(e%2)*prod(x^((e >> k)%2) for (k, x) in enumerate(gens(R)); init=one(R))) for (i, e) in a.entries]))
 end
 
