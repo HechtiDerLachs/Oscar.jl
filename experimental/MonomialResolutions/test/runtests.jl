@@ -39,3 +39,53 @@
   
 end
 
+@testset "more resolutions" begin
+n = 10
+sample = [UInt(rand(1:2^(n-1))) for _ in 1:2^(n-4)]
+bv = interreduce!(Oscar.BinVec.(sample))
+R, x = polynomial_ring(QQ, n)
+F = FreeMod(R, 1)
+v = F.(bv)
+syz_count = 0
+while !isempty(bv)
+  syz_count += 1
+  @show syz_count
+  @time bw = Oscar._syzygies(bv)
+  #@time bw = interreduce!(Oscar.groebner_basis!(bw))
+  @time bw = interreduce!(bw)
+  @time w = syzygy_generators(v)
+  is_empty(bw) && break
+  F = parent(first(w))
+  ww = F.(bw)
+  I = sub_object(F, w)
+  J = sub_object(F, ww)
+  tst = I == J
+  @test tst
+  !tst && break
+  bv = bw
+  v = ww
+end
+  
+end
+
+@testset "even more resolutions" begin
+n = 14
+sample = [UInt(rand(1:2^(n-1))) for _ in 1:2^(n-4)]
+bv = interreduce!(Oscar.BinVec.(sample))
+R, x = polynomial_ring(QQ, n)
+F = FreeMod(R, 1)
+v = F.(bv)
+@time res = free_resolution(sub_object(F, v));
+syz_count = 0
+@time while !isempty(bv)
+  syz_count += 1
+  @show syz_count
+  @time bw = Oscar._syzygies(bv)
+  #@time bw = interreduce!(Oscar.groebner_basis!(bw))
+  @time bw = interreduce!(bw)
+  is_empty(bw) && break
+  bv = bw
+end
+  
+end
+
