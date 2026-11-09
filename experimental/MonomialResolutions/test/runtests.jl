@@ -70,12 +70,19 @@ end
 
 @testset "even more resolutions" begin
 n = 14
-sample = [UInt(rand(1:2^(n-1))) for _ in 1:2^(n-4)]
+sample = [UInt(rand(1:2^(n-1))) for _ in 1:2^(n-2)]
 bv = interreduce!(Oscar.BinVec.(sample))
-R, x = polynomial_ring(QQ, n)
+R, x = polynomial_ring(GF(3), n)
 F = FreeMod(R, 1)
 v = F.(bv)
-@time res = free_resolution(sub_object(F, v));
+res, _ = free_resolution(Oscar.SimpleFreeResolution, sub_object(F, v));
+@time res[n];
+sres = simplify(res);
+@time bres = Oscar.resolution!(bv);
+alt_res = simplify(Oscar._to_resolution(bres, R));
+[ngens(sres[i]) for i in 0:length(bres)-1]
+[ngens(alt_res[i]) for i in 1:length(bres)]
+
 syz_count = 0
 @time while !isempty(bv)
   syz_count += 1

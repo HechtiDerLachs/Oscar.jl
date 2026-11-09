@@ -67,12 +67,18 @@ function deepcopy_internal(a::BinVec, d::IdDict)
   return res
 end
 
+function copy(a::BinVec)
+  result = BinVec()
+  result.entries = copy(a.entries)
+  return result
+end
+
 function +(a::BinVec, b::BinVec)
-  return addmul!(deepcopy(a), b, 1)
+  return addmul!(copy(a), b, 1)
 end
 
 function -(a::BinVec, b::BinVec)
-  return addmul!(deepcopy(a), b, -1)
+  return addmul!(copy(a), b, -1)
 end
 
 length(a::BinVec) = length(a.entries)
@@ -180,6 +186,10 @@ function Base.:(==)(a::BinVec, b::BinVec)
   return a.entries == b.entries
 end
 
+function hash(a::BinVec, u::UInt)
+  return hash(a.entries, u)
+end
+
 function mul!(e, a::BinVec)
   return mul!(UInt(e), a)
 end
@@ -187,7 +197,7 @@ end
 function mul!(e::UInt, a::BinVec)
   for (k, (p, mon)) in enumerate(a.entries)
     @assert is_zero((mon & e) >> 1) "result of multiplication would have a square"
-    a.entries[k] = (p, ((xor(mon, e) >> 1) << 1) + (mon%2 + e%2)%2)
+    a.entries[k] = (p, (xor(mon, e) & ~UInt(1)) + (mon%2 + e%2)%2)
   end
   return a
 end
@@ -197,7 +207,7 @@ function *(e, a::BinVec)
 end
 
 function *(e::UInt, a::BinVec)
-  return mul!(e::UInt, deepcopy(a))
+  return mul!(e::UInt, copy(a))
 end
 
 function -(a::BinVec)
@@ -207,7 +217,7 @@ end
 lead(a::BinVec) = first(a.entries)
 is_zero(a::BinVec) = is_empty(a.entries)
 
-_binary_vector_lcm(a::UInt, b::UInt) = ((a >> 1) | (b >> 1)) << 1 + 1
+_binary_vector_lcm(a::UInt, b::UInt) = (a | b) & ~UInt(1) #((a >> 1) | (b >> 1)) << 1 
 
 function _binary_vector_divides(a::UInt, b::UInt)
   # a: 1100
@@ -249,7 +259,7 @@ function groebner_basis!(gens::Vector{BinVec})
     append!(pairs_todo, [(i, n+1) for (i, g) in enumerate(gens) if lead(g)[1] == qq])
     push!(gens, g)
   end
-  @show counter, nonzero_reductions
+  #@show counter, nonzero_reductions
   return gens
 end
 
@@ -306,12 +316,12 @@ function interreduce!(gens::Vector{BinVec})
     for (ind, g) in enumerate(result)
       result[ind] = reduce!(g, v)
     end
-    result = filter!(!is_zero, result)
+    #result = filter!(!is_zero, result)
     v = reduce!(v, result)
     is_zero(v) && continue
     push!(result, v)
   end
-  return result
+  return filter!(!is_zero, result)
 end
 
 function interreduce!(gens::Vector{BinVec}, lower::Int, upper::Int)
@@ -387,6 +397,13 @@ function _syzygies(gens::Vector{BinVec})
       push!(result, new_syz)
     end
   end
+# for s in result
+#   tst = BinVec()
+#   for (p, a) in s.entries
+#     tst = addmul!(tst, gens[p], a)
+#   end
+#   @assert is_zero(tst)
+# end
   return result
 end
 
@@ -404,6 +421,238 @@ function (F::FreeMod)(a::BinVec)
 #     @show x^((e >> k)%2)
 #   end
 # end
-  return F(sparse_row(R, [(Int(i), (-1)^(e%2)*prod(x^((e >> k)%2) for (k, x) in enumerate(gens(R)); init=one(R))) for (i, e) in a.entries]))
+  #return F(sparse_row(R, [(Int(i), (-1)^(e%2)*prod(x^((e >> k)%2) for (k, x) in enumerate(gens(R)); init=one(R))) for (i, e) in a.entries]))
+  kk = coefficient_ring(R)
+  n = ngens(R)
+  entries = sizehint!(Tuple{Int, elem_type(R)}[], length(a.entries))
+  for (i, e) in a.entries
+    d = [0 for _ in 1:n]
+    for (k, c) in enumerate(digits(e >> 1; base=2))
+      d[k] = c
+    end
+    #d = digits(e >> 1; base=2)
+    #append!(d, [0 for _ in (length(d)+1):n])
+    push!(entries, (i, R([is_zero(e%2) ? one(kk) : -one(kk)], [d])))
+  end
+  return F(sparse_row(R, entries))
+end
+
+function _lt(a::BinVec, b::BinVec)
+  p, e = lead(a)
+  q, f = lead(b)
+  p < q && return false
+  p > q && return true
+  return e < f
+end
+
+function resolution!(g::Vector{BinVec}; 
+    is_minimal::Bool=false, is_sorted::Bool=false, 
+    upper_bound::Union{AbstractAlgebra.PosInf, Int}=AbstractAlgebra.PosInf()
+  )
+  if !is_minimal
+    g = interreduce!(g)
+  end
+  if !is_sorted
+    g = sort!(g; lt=_lt)
+  end
+  result = Vector{BinVec}[g]
+  #@show length(g)
+  while !isempty(last(result)) && length(result) <= upper_bound
+    @show length(result)
+    vd = last(result)
+    @show length(vd)
+    lookup = Dict{Int, Int}()
+    q = 0
+    for (k, v) in enumerate(vd)
+      p, _ = lead(v)
+      p == q && continue
+      @assert p > q
+      #haskey(lookup, p) && continue
+      lookup[p] = k
+      q = p
+    end
+    #vvd = interreduce!(groebner_basis!(deepcopy(vd)))
+    #alt_syz = interreduce!(_syzygies(vd))
+    #@show length(vvd)
+    #@show length(alt_syz)
+    next = BinVec[]
+    #@show length(vd)
+    p = UInt(0)
+    init = 0
+    while init < length(vd)
+      p, e = lead(vd[init+1])
+      #@show init, p
+      leads = [e]
+      lleads = [BinVec([(p, e)])]
+      for i in (init+2):length(vd)
+        q, e = lead(vd[i])
+        q > p && break
+        push!(leads, e)
+        push!(lleads, BinVec([(q, e)]))
+      end
+      #@show length(leads)
+      min_pairs = minimal_pairs(lleads)
+      #min_pairs = minimal_pairs(leads)
+      #@assert length(min_pairs) == length(alt_min_pairs)
+#     if length(min_pairs) != length(alt_min_pairs)
+#       for (i, b) in enumerate(vd)
+#         @show i, b
+#       end
+#       for p in min_pairs
+#         @show p
+#       end
+#       for q in alt_min_pairs
+#         @show q
+#       end
+#       more = [p for p in alt_min_pairs if !(p in min_pairs)]
+#       for r in more
+#         @show r
+#       end
+#       error()
+#     end
+      #@show length(min_pairs)
+      for (i, j, ee) in min_pairs
+        #@show i, j, ee
+        a = vd[init+i]
+        b = vd[init+j]
+        #@show a
+        #@show b
+        pp, e = lead(a)
+        qq, f = lead(b)
+        @assert pp == qq
+        #@show e, f, ee
+        # form the s-polynomial
+        s = _binary_vector_div(ee, e)
+        t = _binary_vector_div(ee, f)
+        t = xor(t, 1) # put a negative sign on t
+        rem = addmul!(s*a, b, t)
+        @assert is_zero(rem) || first(lead(rem)) > pp
+        new_syz = BinVec([(UInt(i+init), s), (UInt(j+init), t)])
+        sizehint!(new_syz.entries, length(rem))
+        # tail reduction
+        #for k in (init+length(leads)+1):length(vd)
+        old_lead = (UInt(0), UInt(0))
+        while !is_zero(rem)
+          pp, mm = lead(rem)
+          (pp, mm) == old_lead && error("no cancellation happened")
+          ind = lookup[pp]
+          isnothing(ind) && error("non-trivial term in remainder, but nothing to cancel it")
+          for k in ind:length(vd)
+            w = vd[k]
+            q, nn = lead(w)
+            q > pp && break # nothing to cancel here
+            success, c = _binary_vector_divides(mm, nn)
+            !success && continue
+            #@show k, w, c
+            c = xor(c, 1) # change sign of c
+            rem = addmul!(rem, w, c)
+            push!(new_syz.entries, (UInt(k), c))
+            break
+          end
+          old_lead = (pp, mm)
+        end
+        if !is_zero(rem)
+          @show Int(qq)
+          @show a
+          @show b
+          @show ee
+          @show new_syz
+          @show rem
+        end
+        @assert is_zero(rem) "remainder is not zero"
+        push!(next, new_syz)
+      end
+      init += length(leads)
+    end
+#   @show length(next)
+#   @show length(alt_syz)
+#   for a in next
+#     @show a
+#   end
+#   for b in alt_syz
+#     @show b
+#   end
+#   @show all(a in alt_syz for a in next)
+#   @show all(a in next for a in alt_syz)
+#   for c in setdiff(alt_syz, next)
+#     @show c
+#   end
+    push!(result, next) #interreduce!(groebner_basis!(next)))
+    #return next
+    #push!(result, Vector{BinVec}[])
+  end
+  return result
+end
+
+function minimal_pairs(v::Vector{BinVec})
+  s = interreduce!(_syzygies(v))
+  result = sizehint!(Tuple{Int, Int, UInt}[], div(length(v)^2, 2))
+  for ss in s
+    @assert length(ss.entries) == 2
+    (i, a), (j, b) = ss.entries
+    _, e = lead(v[i])
+    _, f = lead(v[j])
+    ee = _binary_vector_lcm(e, f)
+    success, q = _binary_vector_divides(ee, a)
+    @assert success && q == e
+    success, q = _binary_vector_divides(ee, b)
+    @assert success && xor(q, f) < 2
+    push!(result, (i, j, ee))
+  end
+  return result
+end
+
+function minimal_pairs(g::Vector{UInt})
+  n = length(g)
+  lcms = Union{UInt, Nothing}[a | b for (i, a) in enumerate(g), (j, b) in enumerate(g)]
+  # we apply the chain criterion: If (i, j) produces an lcm which is divisible by k, 
+  # then (i, k) and (j, k) can be used instead of (i, j)
+  for i in 1:(n-1)
+    for j in (i+1):n
+      e = lcms[i, j]::UInt
+      #for (k, f) in enumerate(g)
+      for k in (i+1):(j-1)
+        f = g[k]
+        if first(_binary_vector_divides(e, f))
+          lcms[i, j] = nothing
+          break
+        end
+      end
+    end
+  end
+#     cancel = false
+#     for s in 1:(i-1)
+#       for t in (s+1):n
+#         f = lcms[s, t]
+#         isnothing(f) && continue
+#         if first(_binary_vector_divides(f, e))
+#           lcms[i, j] = nothing
+#           cancel = true
+#           break
+#         elseif first(_binary_vector_divides(e, f))
+#           lcms[s, t] = nothing
+#         end
+#       end
+#       cancel && break
+#     end
+#   end
+# end
+  result = Tuple{Int, Int, UInt}[]
+  for i in 1:(n-1)
+    append!(result, [(i, j+i, e) for (j, e) in enumerate(lcms[i, (i+1):end]) if !isnothing(e)])
+  end
+  return result
+end
+
+function _to_resolution(phis::Vector{Vector{BinVec}}, R::MPolyRing)
+  F = FreeMod(R, 1)
+  maps = FreeModuleHom[]
+  for phi in phis
+    m = length(phi)
+    G = FreeMod(R, m)
+    push!(maps, hom(G, F, F.(phi)))
+    F = G
+  end
+  return SimpleComplexWrapper(ComplexOfMorphisms(reverse(maps); check=false))
 end
 
