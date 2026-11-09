@@ -67,6 +67,9 @@ function deepcopy_internal(a::BinVec, d::IdDict)
   return res
 end
 
+# deepcopy is expensive because of the IdDict. 
+# Since there are no parent-like fields here, 
+# we provide the cheaper copy.
 function copy(a::BinVec)
   result = BinVec()
   result.entries = copy(a.entries)
@@ -217,6 +220,8 @@ end
 lead(a::BinVec) = first(a.entries)
 is_zero(a::BinVec) = is_empty(a.entries)
 
+# Some useful functionality which implicitly treats a UInt as a
+# monomial in our sense. 
 _binary_vector_lcm(a::UInt, b::UInt) = (a | b) & ~UInt(1) #((a >> 1) | (b >> 1)) << 1 
 
 function _binary_vector_divides(a::UInt, b::UInt)
@@ -232,9 +237,17 @@ function _binary_vector_div(a::UInt, b::UInt)
   return xor(a, b)
 end
 
+# compute a Groebner basis from the given set of generators
+# in place. The result is not yet reduced. 
+# This is a straightforward, naive Buchberger implementation.
+# The monomial ordering is hardcoded with position over term 
+# and lexicographic order on the terms. Since everything is 
+# monomial in the terms, the latter order does not really matter
+# in practice, anyway.
 function groebner_basis!(gens::Vector{BinVec})
   gens = interreduce!(gens)
   pairs_todo = [(i, j) for i in 1:length(gens)-1 for j in i+1:length(gens)]
+  # two variables for debugging
   counter = 0
   nonzero_reductions = 0
   while !isempty(pairs_todo)
@@ -263,6 +276,7 @@ function groebner_basis!(gens::Vector{BinVec})
   return gens
 end
 
+# Reduce an element `a` via `gens`. 
 function reduce!(a::BinVec, gens::Vector{BinVec})
   is_zero(a) && return a
   for b in gens
@@ -272,6 +286,7 @@ function reduce!(a::BinVec, gens::Vector{BinVec})
   return a
 end
 
+# Reduce all terms in `a` by `b`.
 function reduce!(a::BinVec, b::BinVec)
   is_zero(b) && return a
   is_zero(a) && return a
@@ -308,15 +323,21 @@ function reduce!(a::BinVec, b::BinVec)
   return a
 end
 
+# Compute an interreduced generating set.
+# Caution! This is not really the case here, because the 
+# new element is first used to reduce the old ones. This 
+# could re-introduce terms in the old ones, which should 
+# have been cancelled. However, for some reason, changing 
+# the order of the reduction, as would be desirable, 
+# leaves the scope of the available arithmetic here by 
+# introducing monomials with quadratic terms.
 function interreduce!(gens::Vector{BinVec})
-  #inds = interreduce!(gens, 1, length(gens))
-  #return gens[inds]
   result = sizehint!(Vector{BinVec}(), size(gens))
   for (k, v) in enumerate(gens)
     for (ind, g) in enumerate(result)
       result[ind] = reduce!(g, v)
     end
-    #result = filter!(!is_zero, result)
+    #result = filter!(!is_zero, result) # turns out to be better postponed until the end, because it triggers massive reallocations.
     v = reduce!(v, result)
     is_zero(v) && continue
     push!(result, v)
@@ -324,6 +345,7 @@ function interreduce!(gens::Vector{BinVec})
   return filter!(!is_zero, result)
 end
 
+# Experimental version of interreduction by bisection which is still buggy.
 function interreduce!(gens::Vector{BinVec}, lower::Int, upper::Int)
   upper == lower && return is_zero(gens[upper]) ? Int[] : [upper]
   mid = div(upper + lower, 2)
@@ -359,6 +381,10 @@ function interreduce!(gens::Vector{BinVec}, lower::Int, upper::Int)
   return result
 end
 
+# Compute a generating set for the syzygies of a given vector.
+# This is a straightforward implementation of the iteration step 
+# in the Schreyer resolution. In particular, it is assumed that 
+# the input is a Groebner basis!
 function _syzygies(gens::Vector{BinVec})
   result = BinVec[]
   for (i, v) in enumerate(gens)
@@ -389,14 +415,10 @@ function _syzygies(gens::Vector{BinVec})
         push!(new_syz.entries, (UInt(k), c))
       end
       @assert is_zero(rem) "remainder is not zero"
-#     cc = BinVec()
-#     for (p, c) in new_syz.entries
-#       cc = addmul!(cc, gens[p], c)
-#     end
-#     @assert is_zero(cc)
       push!(result, new_syz)
     end
   end
+# # code for checking that we have indeed created a syzygy (for debugging)
 # for s in result
 #   tst = BinVec()
 #   for (p, a) in s.entries
@@ -407,29 +429,19 @@ function _syzygies(gens::Vector{BinVec})
   return result
 end
 
+# Conversion of `BinVec`s into elements of free modules
 function (F::FreeMod)(a::BinVec)
   R = base_ring(F)
-# for (i, e) in a.entries
-#   @show i, e
-#   @show Int(i)
-#   @show (-1)^(e%2)
-#   @show prod(x^((e >> k)%2) for (k, x) in enumerate(gens(R)); init=one(R)) 
-#   for (k, x) in enumerate(gens(R))
-#     @show k, x
-#     @show e >> k
-#     @show e >> k %2
-#     @show x^((e >> k)%2)
-#   end
-# end
-  #return F(sparse_row(R, [(Int(i), (-1)^(e%2)*prod(x^((e >> k)%2) for (k, x) in enumerate(gens(R)); init=one(R))) for (i, e) in a.entries]))
   kk = coefficient_ring(R)
   n = ngens(R)
   entries = sizehint!(Tuple{Int, elem_type(R)}[], length(a.entries))
   for (i, e) in a.entries
+    # Allocating everything at once in the beginning is cheaper...
     d = [0 for _ in 1:n]
     for (k, c) in enumerate(digits(e >> 1; base=2))
       d[k] = c
     end
+    # ...than this:
     #d = digits(e >> 1; base=2)
     #append!(d, [0 for _ in (length(d)+1):n])
     push!(entries, (i, R([is_zero(e%2) ? one(kk) : -one(kk)], [d])))
@@ -437,6 +449,8 @@ function (F::FreeMod)(a::BinVec)
   return F(sparse_row(R, entries))
 end
 
+# helper function to compare `BinVec`s with the implicit monomial 
+# order via their leading terms.
 function _lt(a::BinVec, b::BinVec)
   p, e = lead(a)
   q, f = lead(b)
@@ -445,6 +459,9 @@ function _lt(a::BinVec, b::BinVec)
   return e < f
 end
 
+# Compute a free resolution of the submodule generated by `g`.
+# This is an implementation of a Schreyer resolution and we 
+# assume `g` to be a Groebner basis. 
 function resolution!(g::Vector{BinVec}; 
     is_minimal::Bool=false, is_sorted::Bool=false, 
     upper_bound::Union{AbstractAlgebra.PosInf, Int}=AbstractAlgebra.PosInf()
@@ -456,32 +473,32 @@ function resolution!(g::Vector{BinVec};
     g = sort!(g; lt=_lt)
   end
   result = Vector{BinVec}[g]
-  #@show length(g)
+  # outer loop iterating over the homological index of the resolution
   while !isempty(last(result)) && length(result) <= upper_bound
-    @show length(result)
     vd = last(result)
-    @show length(vd)
+    # We create a dictionary which records at which indices 
+    # the position of the leading term jumps. 
+    # The elements come in ordered. This allows more speedy 
+    # tail reductions later on.
     lookup = Dict{Int, Int}()
     q = 0
     for (k, v) in enumerate(vd)
       p, _ = lead(v)
       p == q && continue
       @assert p > q
-      #haskey(lookup, p) && continue
       lookup[p] = k
       q = p
     end
-    #vvd = interreduce!(groebner_basis!(deepcopy(vd)))
-    #alt_syz = interreduce!(_syzygies(vd))
-    #@show length(vvd)
-    #@show length(alt_syz)
+    # Allocate a variable for the result of the iteration step.
     next = BinVec[]
-    #@show length(vd)
+    # The outer iteration over the pairs is by blocks of elements 
+    # with leading term in one particular position. 
     p = UInt(0)
-    init = 0
+    init = 0 # records the necessary offset
     while init < length(vd)
       p, e = lead(vd[init+1])
-      #@show init, p
+      # We record the leading terms and compute a small Groebner 
+      # basis for the syzygies of this monomial ideal. 
       leads = [e]
       lleads = [BinVec([(p, e)])]
       for i in (init+2):length(vd)
@@ -490,37 +507,16 @@ function resolution!(g::Vector{BinVec};
         push!(leads, e)
         push!(lleads, BinVec([(q, e)]))
       end
-      #@show length(leads)
-      min_pairs = minimal_pairs(lleads)
-      #min_pairs = minimal_pairs(leads)
-      #@assert length(min_pairs) == length(alt_min_pairs)
-#     if length(min_pairs) != length(alt_min_pairs)
-#       for (i, b) in enumerate(vd)
-#         @show i, b
-#       end
-#       for p in min_pairs
-#         @show p
-#       end
-#       for q in alt_min_pairs
-#         @show q
-#       end
-#       more = [p for p in alt_min_pairs if !(p in min_pairs)]
-#       for r in more
-#         @show r
-#       end
-#       error()
-#     end
-      #@show length(min_pairs)
+      min_pairs = minimal_pairs(lleads) # TODO: This step can be improved!
+      #min_pairs = minimal_pairs(leads) # Experimental version which still gives unreasonably big results
+      # Now we go through all the found minimal syzygies and 
+      # expand the full tails, to arrive at a Schreyer resolution step. 
       for (i, j, ee) in min_pairs
-        #@show i, j, ee
         a = vd[init+i]
         b = vd[init+j]
-        #@show a
-        #@show b
         pp, e = lead(a)
         qq, f = lead(b)
         @assert pp == qq
-        #@show e, f, ee
         # form the s-polynomial
         s = _binary_vector_div(ee, e)
         t = _binary_vector_div(ee, f)
@@ -530,12 +526,11 @@ function resolution!(g::Vector{BinVec};
         new_syz = BinVec([(UInt(i+init), s), (UInt(j+init), t)])
         sizehint!(new_syz.entries, length(rem))
         # tail reduction
-        #for k in (init+length(leads)+1):length(vd)
         old_lead = (UInt(0), UInt(0))
         while !is_zero(rem)
           pp, mm = lead(rem)
           (pp, mm) == old_lead && error("no cancellation happened")
-          ind = lookup[pp]
+          ind = lookup[pp] # This is where we benefit from the lookup table!
           isnothing(ind) && error("non-trivial term in remainder, but nothing to cancel it")
           for k in ind:length(vd)
             w = vd[k]
@@ -543,7 +538,6 @@ function resolution!(g::Vector{BinVec};
             q > pp && break # nothing to cancel here
             success, c = _binary_vector_divides(mm, nn)
             !success && continue
-            #@show k, w, c
             c = xor(c, 1) # change sign of c
             rem = addmul!(rem, w, c)
             push!(new_syz.entries, (UInt(k), c))
@@ -551,39 +545,18 @@ function resolution!(g::Vector{BinVec};
           end
           old_lead = (pp, mm)
         end
-        if !is_zero(rem)
-          @show Int(qq)
-          @show a
-          @show b
-          @show ee
-          @show new_syz
-          @show rem
-        end
         @assert is_zero(rem) "remainder is not zero"
         push!(next, new_syz)
       end
       init += length(leads)
     end
-#   @show length(next)
-#   @show length(alt_syz)
-#   for a in next
-#     @show a
-#   end
-#   for b in alt_syz
-#     @show b
-#   end
-#   @show all(a in alt_syz for a in next)
-#   @show all(a in next for a in alt_syz)
-#   for c in setdiff(alt_syz, next)
-#     @show c
-#   end
-    push!(result, next) #interreduce!(groebner_basis!(next)))
-    #return next
-    #push!(result, Vector{BinVec}[])
+    push!(result, next)
   end
   return result
 end
 
+# Compute a list of pairs `(i, j)` of indices which 
+# give a small Groebner basis for the syzygies. 
 function minimal_pairs(v::Vector{BinVec})
   s = interreduce!(_syzygies(v))
   result = sizehint!(Tuple{Int, Int, UInt}[], div(length(v)^2, 2))
@@ -602,6 +575,7 @@ function minimal_pairs(v::Vector{BinVec})
   return result
 end
 
+# Experimental version which still gives too big results.
 function minimal_pairs(g::Vector{UInt})
   n = length(g)
   lcms = Union{UInt, Nothing}[a | b for (i, a) in enumerate(g), (j, b) in enumerate(g)]
@@ -644,6 +618,8 @@ function minimal_pairs(g::Vector{UInt})
   return result
 end
 
+# Convert a list of lists of generators of submodules into an 
+# honest complex over a given polynomial ring in Oscar.
 function _to_resolution(phis::Vector{Vector{BinVec}}, R::MPolyRing)
   F = FreeMod(R, 1)
   maps = FreeModuleHom[]
