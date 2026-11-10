@@ -580,11 +580,13 @@ function _parallel_syz(g::Vector{BinVec})
 #   chunk_syz = _expand_leading_syzygies(g; lookup_dict, start=ind)
 #   push!(chunk_syzs, chunk_syz)
 # end
-  helper(x) = _expand_leading_syzygies(g, x; lookup_dict)
-  d = div(length(chunks_starts), 5)
-  sections = [chunks_starts[k*d+1:(k+1)*d] for k in 0:4]
-  push!(sections, chunks_starts[(5*d+1):end])
-  chunk_syzs = pmap(helper, sections)
+# helper(x) = _expand_leading_syzygies(g, x; lookup_dict)
+# d = div(length(chunks_starts), 5)
+# sections = [chunks_starts[k*d+1:(k+1)*d] for k in 0:4]
+# push!(sections, chunks_starts[(5*d+1):end])
+# chunk_syzs = map(helper, sections)
+  helper(x) = _expand_leading_syzygies(g; lookup_dict, start=x)
+  chunk_syzs = map(helper, chunks_starts)
 
   result = BinVec[]
   offset = 0
@@ -595,7 +597,7 @@ function _parallel_syz(g::Vector{BinVec})
 #   end
 # end
 # @show length.(chunks)
-  @show length(chunk_syzs)
+  #@show length(chunk_syzs)
   for (k, chunk) in enumerate(chunk_syzs)
     append!(result, chunk) #shift!(chunk, UInt(length(g) - length(chunks[k]))))
   end
@@ -771,5 +773,103 @@ function _to_resolution(phis::Vector{Vector{BinVec}}, R::MPolyRing)
     F = G
   end
   return SimpleComplexWrapper(ComplexOfMorphisms(reverse(maps); check=false))
+end
+
+function degrees_of_generators(res::SquarefreeMonomialResolution, i::Int)
+  @assert i >= -1 "index out of bounds"
+  if !isdefined(res, :degs)
+    res.degs = Vector{UInt}[[UInt(0)]]
+  end
+  length(res.degs) > i+1 && return res.degs[i+2]
+  length(res.degs) <= i && degrees_of_generators(res, i-1) # fill the cache
+  prev_degs = last(res.degs)
+  bvs = images_of_generators(res, i)
+  degs = sizehint!(UInt[], length(bvs))
+  for v in bvs
+    p, e = lead(v)
+    push!(degs, prev_degs[p] | (e >> 1))
+  end
+  push!(res.degs, degs)
+  return degs
+end
+
+function images_of_generators(res::SquarefreeMonomialResolution, i::Int)
+  @assert i >= 0 "index out of bounds"
+  if !isdefined(res, :res)
+    res.res = Vector{BinVec}[interreduce!(BinVec.(gens(res.I)))]
+  end
+  length(res.res) > i && return res.res[i+1]
+  length(res.res) < i && images_of_generators(res, i-1) # fill the cache
+  bvs = last(res.res)
+  push!(res.res, _parallel_syz(bvs))
+  return last(res.res)
+end
+
+function graded_part(res::SquarefreeMonomialResolution, p::UInt, i::Int)
+  @assert i >= 0 "index out of bounds"
+  if !isdefined(res, :graded_parts)
+    res.graded_parts = Dict{Int, Dict}()
+  end
+  part_dict = get!(res.graded_parts, p) do
+    Dict{Int, MatrixElem}()
+  end
+  return get!(part_dict, i) do
+    #dom_degs = degrees_of_generators(res, i)
+    #cod_degs = degrees_of_generators(res, i-1)
+    dom_inds = get(deg_buckets(res, i), p) do
+      Int[]
+    end #findall(==(p), dom_degs)
+    cod_inds = get(deg_buckets(res, i-1), p) do
+      Int[]
+    end #findall(==(p), cod_degs)
+    kk = coefficient_ring(base_ring(res.I))
+    m = length(dom_inds)
+    n = length(cod_inds)
+    result = zero(matrix_space(kk, m, n))
+    img_gens = images_of_generators(res, i)
+    for i in 1:m
+      v = img_gens[dom_inds[i]]
+      for j in 1:n
+        q = cod_inds[j]
+        ind = findfirst(p == q for (p, _) in v.entries)
+        isnothing(ind) && continue
+        _, e = v.entries[ind]
+        result[i, j] = is_one(e%2) ? -one(kk) : one(kk)
+      end
+    end
+    result
+  end
+end
+
+function betti_number(res::SquarefreeMonomialResolution, i::Int, p::UInt)
+  if !isdefined(res, :betti_numbers)
+    res.betti_numbers = Dict{Tuple{Int, UInt}, Int}()
+  end
+  return get!(res.betti_numbers, (i, p)) do
+    in_mat = graded_part(res, p, i+1)
+    out_mat = i >= 0 ? graded_part(res, p, i) : zero(matrix_space(base_ring(in_mat), ncols(in_mat), 0))
+    @assert ncols(in_mat) == nrows(out_mat)
+    ncols(in_mat) - rank(in_mat) - rank(out_mat)
+  end
+end
+
+function betti_numbers(res::SquarefreeMonomialResolution, i::Int)
+  return Dict{UInt, Int}(p=>betti_number(res, i, p) for p in degrees_of_generators(res, i))
+end
+
+function deg_buckets(res::SquarefreeMonomialResolution, i::Int)
+  if !isdefined(res, :deg_buckets)
+    res.deg_buckets = Dict{Int, Dict}()
+  end
+  return get!(res.deg_buckets, i) do
+    buckets = Dict{UInt, Vector{Int}}()
+    for (k, e) in enumerate(degrees_of_generators(res, i))
+      lst = get!(buckets, e) do
+        Int[]
+      end
+      push!(lst, k)
+    end
+    buckets
+  end
 end
 

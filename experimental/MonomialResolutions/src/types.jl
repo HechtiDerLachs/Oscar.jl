@@ -30,3 +30,17 @@ mutable struct BinVec
   end
 end
 
+mutable struct SquarefreeMonomialResolution{T}
+  I::MPolyIdeal{T}
+  g::Vector{BinVec}
+  res::Vector{Vector{BinVec}}
+  degs::Vector{Vector{UInt}}
+  deg_buckets::Dict{Int, Dict}
+  graded_parts::Dict{UInt, Dict}
+  betti_numbers::Dict{Tuple{Int, UInt}, Int}
+
+  function SquarefreeMonomialResolution(I::MPolyIdeal{T}) where {T}
+    return new{T}(I)
+  end
+end
+
