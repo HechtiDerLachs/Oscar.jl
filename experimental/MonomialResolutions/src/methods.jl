@@ -449,6 +449,15 @@ function (F::FreeMod)(a::BinVec)
   return F(sparse_row(R, entries))
 end
 
+function (R::MPolyRing)(a::BinVec)
+  kk = coefficient_ring(R)
+  n = ngens(R)
+  p, e = only(a.entries)
+  ee = digits(e >> 1; base=2)
+  append!(ee, [0 for _ in length(ee)+1:n])
+  return R([is_zero(e%2) ? one(kk) : -one(kk)], [ee])
+end
+
 # helper function to compare `BinVec`s with the implicit monomial 
 # order via their leading terms.
 function _lt(a::BinVec, b::BinVec)
@@ -805,6 +814,15 @@ function images_of_generators(res::SquarefreeMonomialResolution, i::Int)
   return last(res.res)
 end
 
+function graded_part(res::SquarefreeMonomialResolution, p::Int, i::Int)
+  return graded_part(res, UInt(p), i)
+end
+
+function graded_part(res::SquarefreeMonomialResolution, d::Vector{Int}, i::Int)
+  @assert all(0<=k<=1 for k in d) && length(d) == ngens(base_ring(res.I))
+  return graded_part(res, sum(1 << (k-1) for k in d; init=0), i)
+end
+
 function graded_part(res::SquarefreeMonomialResolution, p::UInt, i::Int)
   @assert i >= 0 "index out of bounds"
   if !isdefined(res, :graded_parts)
@@ -839,6 +857,15 @@ function graded_part(res::SquarefreeMonomialResolution, p::UInt, i::Int)
     end
     result
   end
+end
+
+function betti_number(res::SquarefreeMonomialResolution, i::Int, d::Vector{Int})
+  @assert all(0<=k<=1 for k in d) && length(d) == ngens(base_ring(res.I))
+  return betti_number(res, i, sum(1 << (k-1) for k in d; init=0))
+end
+
+function betti_number(res::SquarefreeMonomialResolution, i::Int, p::Int)
+  return betti_number(res, i, UInt(p))
 end
 
 function betti_number(res::SquarefreeMonomialResolution, i::Int, p::UInt)
