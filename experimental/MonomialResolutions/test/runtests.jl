@@ -111,6 +111,15 @@ s = Oscar._parallel_syz(s)
 res, _ = free_resolution(Oscar.SimpleFreeResolution, sub_object(F, v));
 end
 
+@testset "toric cohomology support sets" begin
+  X = projective_space(NormalToricVariety, 2)
+  @test [!is_empty(Oscar.cohomology_support_set(X, j)) for j in 0:2] == [1, 0, 1]
+  X = X*X
+  @test [!is_empty(Oscar.cohomology_support_set(X, j)) for j in 0:4] == [1, 0, 1, 0, 1]
+  X = hirzebruch_surface(NormalToricVariety, 3)
+  @test length.([Oscar.cohomology_support_set(X, j) for j in 0:2]) == [1, 2, 1]
+end
+
 @testset "squarefree monomial resolutions and Betti numbers" begin
 # choose a number of variables
 n = 7

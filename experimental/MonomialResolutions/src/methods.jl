@@ -900,3 +900,50 @@ function deg_buckets(res::SquarefreeMonomialResolution, i::Int)
   end
 end
 
+@attr MPolyIdeal function alexander_dual_of_irrelevant_ideal(X::NormalToricVariety)
+  I = irrelevant_ideal(X)
+  S = cox_ring(X)
+  return ideal([f for f in gens(quotient(ideal([x^2 for x in gens(S)]), I)) if is_squarefree(f)])
+end
+
+@attr SquarefreeMonomialResolution function resolution_of_alexander_dual_of_irrelevant_ideal(X::NormalToricVariety)
+  return SquarefreeMonomialResolution(alexander_dual_of_irrelevant_ideal(X))
+end
+
+@doc raw"""
+    cohomology_support_set(X::NormalToricVariety, i::Int)
+
+Compute the "support set" in cohomological degree `i` for `X` in the 
+sense of [EisenbudMustataStillman2000](@cite), Corollary 1.2 (c). 
+
+For an integer `i` this returns a list of unsigned integers `p`, so that 
+`p`, read as a bit vector, indicates that there is non-trivial cohomology 
+supported in the orthant with signature `p`.
+"""
+function cohomology_support_set(X::NormalToricVariety, i::Int)
+  @assert is_complete(X) "variety needs to be complete"
+  supp_dict = get_attribute!(X, :cohomology_support_dict) do
+    # This implements Corollary 1.2 (c) from Eisenbud, Mustata, Stillman: Cohomology On Toric Varieties and Local Cohomology With Monomial Supports
+    dict = Dict{Int, Vector{UInt}}()
+    res = resolution_of_alexander_dual_of_irrelevant_ideal(X)
+    result = UInt[]
+    for j in 1:ngens(cox_ring(X))
+      for (p, r) in betti_numbers(res, j-1)
+        is_zero(r) && continue
+        l = sum(digits(p; base=2); init=0)
+        ii = l - j
+        lst = get!(dict, ii) do
+          UInt[]
+        end
+        push!(lst, p)
+      end
+    end
+    # extra care must be taken for degree zero because of the difference of local cohomology and sheaf cohomology
+    push!(get!(dict, 0, Int[]), UInt(0))
+    dict
+  end
+  return get!(supp_dict, i) do
+    UInt[]
+  end
+end
+
