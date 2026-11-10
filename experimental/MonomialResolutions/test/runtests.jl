@@ -96,3 +96,59 @@ end
   
 end
 
+@testset "parallel computations" begin
+n = 7
+sample = [UInt(rand(1:2^(n-1))) for _ in 1:2^(n-2)]
+bv = interreduce!(Oscar.BinVec.(sample))
+R, x = polynomial_ring(GF(3), n)
+F = FreeMod(R, 1)
+v = F.(bv)
+bres = Oscar.resolution!(bv);
+length.(bres)
+s = copy(bv)
+s = Oscar._parallel_syz(s)
+
+res, _ = free_resolution(Oscar.SimpleFreeResolution, sub_object(F, v));
+end
+
+@testset "squarefree monomial resolutions and Betti numbers" begin
+# choose a number of variables
+n = 7
+# generate a list of exponent vectors for squarefree monomials
+sample = [UInt(rand(1:2^(n-1))) for _ in 1:2^(n-2)]
+# convert the list of exponent vectors to a list of monomials with 
+# (very dense) binary encoding 
+bv = Oscar.BinVec.(sample)
+# minimize the generating set
+bv = interreduce!(bv)
+# recreate the ideal in an honest polynomial ring
+R, x = polynomial_ring(GF(3), n)
+f = R.(bv)
+# Create the "resolution" of the ideal. Note that this does not 
+# behave like a classical resolution object! In particular, it 
+# is not a chain complex over `R`. This would defeat the purpose 
+# since we introduce this data structure to be able to handle cases 
+# which would blow up in memory if one tried to do computations 
+# naively with generic data structures. The object `res` nevertheless 
+# contains all data for many queries of interest. 
+res = Oscar.SquarefreeMonomialResolution(ideal(f))
+# Compute the list of all possibly non-zero Betti numbers in a given 
+# homological degree (note that `res` is not necessarily minimal, 
+# so even though degrees appear among the generators, cancellation 
+# is still possible.
+betti_numbers(res, 1)
+# we can ask for a Betti number in a specific homological degree 
+# and for a specific degree in the grading. The third argument is 
+# treated as a bit vector for the grading group. 
+betti_number(res, 1, 7)
+# exponent vectors can also be used as input, even though this is 
+# not the intended use
+e = [rand(0:1) for _ in 1:n]
+betti_number(res, 1, e)
+# We can ask for representing matrices of the monomial maps in a 
+# specific homological index and degree
+Oscar.graded_part(res, 25, 2)
+Oscar.graded_part(res, e, 2)
+# or get a list of degrees of the generators
+Oscar.degrees_of_generators(res, 2)
+end
