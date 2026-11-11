@@ -208,16 +208,21 @@ function Oscar.addmul!(v::AffineSemigroupElem, w::AffineSemigroupElem, c::ZZRing
   is_zero(c) && return v
   if !isnothing(v.coords) && !isnothing(w.coords)
     v.coords .+= c*w.coords
+    @assert c >= 0 || all(>=(0), v.coords) "invalid element of semigroup"
     v.repres = nothing
     return v
   end
   if is_zero(v) 
     if !isnothing(w.coords)
       v.coords = c*w.coords
+      @assert c >= 0 || all(>=(0), v.coords) "invalid element of semigroup"
       v.repres = nothing
       return v
     end
     v.repres = c*w.repres
+    if c < 0
+      @assert v.repres in parent(v) "invalid subtraction"
+    end
     v.coords = nothing
     return v
   end
@@ -235,6 +240,7 @@ end
 
 function Oscar.mul!(v::AffineSemigroupElem, c::ZZRingElem)
   iszero(v) && return v
+  @assert c >= 0 "invalid multiplication" # At the moment we only support pointed semigroups
   if !isnothing(v.coords)
     v.coords .*= c
     return v
