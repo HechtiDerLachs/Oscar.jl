@@ -277,7 +277,7 @@ function a_resultant_complex(F::Vector{T};
   K = HomogKoszulComplex(S_ext, homogeneous_tautological_polynomials(ctx))
   t = ZeroDimensionalComplex(graded_free_module(S_ext, [-twist]))
   Kt = tensor_product(K, t)
-  return DirectImageComplex(outer_toric_ctx_object, Kt)
+  return DirectImageComplex(outer_ctx(ctx), Kt)
 end
 
 @doc raw"""
