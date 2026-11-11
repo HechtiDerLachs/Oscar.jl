@@ -829,7 +829,7 @@ function graded_part(res::SquarefreeMonomialResolution, p::UInt, i::Int)
     res.graded_parts = Dict{Int, Dict}()
   end
   part_dict = get!(res.graded_parts, p) do
-    Dict{Int, MatrixElem}()
+    Dict{Int, Int}()
   end
   return get!(part_dict, i) do
     #dom_degs = degrees_of_generators(res, i)
@@ -855,7 +855,7 @@ function graded_part(res::SquarefreeMonomialResolution, p::UInt, i::Int)
         result[i, j] = is_one(e%2) ? -one(kk) : one(kk)
       end
     end
-    result
+    rank(result)
   end
 end
 
@@ -873,10 +873,11 @@ function betti_number(res::SquarefreeMonomialResolution, i::Int, p::UInt)
     res.betti_numbers = Dict{Tuple{Int, UInt}, Int}()
   end
   return get!(res.betti_numbers, (i, p)) do
-    in_mat = graded_part(res, p, i+1)
-    out_mat = i >= 0 ? graded_part(res, p, i) : zero(matrix_space(base_ring(in_mat), ncols(in_mat), 0))
-    @assert ncols(in_mat) == nrows(out_mat)
-    ncols(in_mat) - rank(in_mat) - rank(out_mat)
+    bucket = get(deg_buckets(res, i), p, nothing)
+    isnothing(bucket) && return 0
+    in_mat_rank = graded_part(res, p, i+1)
+    out_mat_rank = i >= 0 ? graded_part(res, p, i) : 0
+    length(bucket) - in_mat_rank - out_mat_rank
   end
 end
 
@@ -925,7 +926,7 @@ function cohomology_support_set(X::NormalToricVariety, i::Int)
   supp_dict = get_attribute!(X, :cohomology_support_dict) do
     # This implements Corollary 1.2 (c) from Eisenbud, Mustata, Stillman: Cohomology On Toric Varieties and Local Cohomology With Monomial Supports
     dict = Dict{Int, Vector{UInt}}()
-    res = resolution_of_alexander_dual_of_irrelevant_ideal(X)
+    res = SquarefreeMonomialResolution(alexander_dual_of_irrelevant_ideal(X)) #resolution_of_alexander_dual_of_irrelevant_ideal(X)
     result = UInt[]
     for j in 1:ngens(cox_ring(X))
       for (p, r) in betti_numbers(res, j-1)
