@@ -1760,6 +1760,7 @@ function support_set(ctx::NewToricCtx, p::Int)
 # end
   return get!(ctx.support_sets, p) do 
     X = toric_variety(ctx)
+    return Int.(cohomology_support_set(X, p))
     S = graded_ring(ctx)
     n = ngens(S)
     result = Int[]
@@ -1845,8 +1846,24 @@ function optimal_k(ctx::NewToricCtx, i::Int, alpha::FinGenAbGroupElem)
     @assert parent(alpha) === G "degree does not belong to the grading group"
     Sigma_i = support_set(ctx, i)
     alpha_vec = elem_type(ZZ)[alpha[i] for i in 1:rank(G)]
+    alpha_int = Int.(alpha_vec)
     phi = map_from_torusinvariant_weil_divisor_group_to_class_group(X)
     A = transpose(matrix(phi))
+    @show typeof(A)
+    @show length(Sigma_i)
+    Sigma_chunks = Vector{Int}[]
+    nworkers = 6
+    p, q = divrem(length(Sigma_i), nworkers)
+    for i in 1:(nworkers-1)
+      push!(Sigma_chunks, Sigma_i[(i-1)*p+1:i*p])
+    end
+    push!(Sigma_chunks, Sigma_i[(nworkers-1)*p+1:end])
+    AA = map_entries(Int, A).entries
+    helper(x) = optimal_k_helper(AA, alpha_int, x)
+    @show length.(Sigma_chunks)
+    ks = pmap(helper, Sigma_chunks)
+    return maximum(ks)
+
     for I in Sigma_i
       L_I = zero_matrix(ZZ, n, n)
       for j in 1:n
@@ -1871,5 +1888,35 @@ function optimal_k(ctx::NewToricCtx, i::Int, alpha::FinGenAbGroupElem)
     end
     return k
   end::Int
+end
+
+function optimal_k_helper(AA::Matrix{Int}, aa::Vector{Int}, Sigma_part::Vector{Int})
+  alpha_vec = ZZ.(aa)
+  A = ZZ.(AA)
+  n = ncols(A)
+  k = 0
+  for I in Sigma_part
+    L_I = zero_matrix(ZZ, n, n)
+    for j in 1:n
+      L_I[j, j] = is_zero((I >> (j-1))%2) ? -1 : 1
+    end
+    D = vcat(L_I, A, -A)
+    b = elem_type(ZZ)[is_zero((I >> (j-1))%2) ? 0 : -1 for j in 1:n]
+    @assert nrows(A) == length(alpha_vec)
+    @assert ncols(L_I) == ncols(A)
+    P = polyhedron((L_I, b), (A, alpha_vec))
+    for j in 1:n
+      is_zero((I >> (j-1))%2) && continue
+      l = elem_type(ZZ)[i == j ? 1 : 0 for i in 1:n]
+      lp = linear_program(P, -l)
+      v, _ = solve_lp(lp)
+      isnothing(v) && break # empty polyhedron
+      is_infinite(v) && error("polyhedron not bounded")
+      if v > k
+        k = Int(floor(v))
+      end
+    end
+  end
+  return k
 end
 

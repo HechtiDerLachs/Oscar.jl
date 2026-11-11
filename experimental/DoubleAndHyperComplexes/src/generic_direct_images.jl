@@ -88,6 +88,7 @@ function (fac::DirectImageChainFactory{ChainType})(self::AbsHyperComplex, I::Tup
     micro_summands = ChainType[]
     for (l, g) in enumerate(gens(graded_complex[i + k]))
       dd = degree(g; check=false)
+      @show l, dd
       coh_mod = cohomology_model(ctx, -dd)
       str = coh_mod[-k]
       push!(micro_summands, str)
