@@ -775,14 +775,14 @@ function multiplication_map(
   end
   # If the map is already known for the negative of a given polynomial, use that.
   neg_res = get(cache, -p, nothing)
-  !isnothing(neg_res) && return MapFromFunc(domain(neg_res), codomain(neg_res), v->-neg_res(v))
+  #!isnothing(neg_res) && return MapFromFunc(domain(neg_res), codomain(neg_res), v->-neg_res(v))
   # We want to use as little cache as possible while still providing reasonable speed. 
   # The bases of the free modules in question are usually quite big. Storing a list of 
   # images of generators is therefore rather costly, even though they will be sparse. 
   # Given the nature of the setup, the relevant information to compute the image of an 
   # element is already stored in a format which allows for fast evaluation by means 
   # different from taking a linear combination. 
-  return get!(cache, p) do
+  #return get!(cache, p) do
     d1 = d0 + degree(p; check=false)
     dom_cplx = ctx[e0, d0]
     cod_cplx = ctx[e0, d1]
@@ -822,7 +822,7 @@ function multiplication_map(
                          return cod(res_coords)
                        end
                       )
-  end
+  #end
 end
 
 function stable_index(css::CohomologySpectralSequence, i::Int, j::Int)
