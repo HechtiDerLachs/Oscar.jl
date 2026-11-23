@@ -413,6 +413,7 @@ end
 # We realize all these maps on the macro and micro blocks with their 
 # individual positions and indices in the direct limit. 
 function apply_phi(v::MacroVec; check::Bool=false)
+  @show "apply_phi"
   @assert typ(v) == :cochain "can not apply phi on cohomology"
   ctx = pushforward_ctx(v)
   wctx = weyman_ctx(v)
@@ -425,16 +426,22 @@ function apply_phi(v::MacroVec; check::Bool=false)
   A = sparse_matrix(f)
   res_mod = get_macro_block!(wctx, p+1, q, :cochain)
   result = MacroVec(res_mod; check)
+  @show size(A)
   for (i, w) in micro_vectors(v)
+    @show i
     is_zero(A[i]) && continue
     e = direct_limit_index(w)
     alpha = degree(w)
     for (j, a) in A[i]
-      mm = multiplication_map(ctx, a, e, alpha, -q)
-      ww = MicroVec(res_mod, j, e, mm(w.c); check)
+      @show j
+      @time mm = multiplication_map(ctx, a, e, alpha, -q)
+      @show "^ time for creation of multiplication map"
+      @time ww = MicroVec(res_mod, j, e, mm(w.c); check)
+      @show "^ time for application of multiplication map"
       add!(result, ww; check)
     end
   end
+  @show "done with phi"
   return result
 end
 
@@ -806,10 +813,13 @@ end
 # functions, it is now relatively easy to write down this 
 # procedure.
 function apply_weyman_differential(v::MacroVec; check::Bool=false)
+  @show "weyman differential call"
   p, q = index(v)
   sgn = (-1)^(p+q)
   u = apply_cohomology_inclusion(sgn*v)
-  w = apply_phi(u; check)
+  @show "first map"
+  @time w = apply_phi(u; check)
+  @show "^ time for phi"
   if isnothing(w) 
     # The image is zero, because the complex stops there. 
     # But we need to build a `Vector` of macro vectors
@@ -827,6 +837,7 @@ function apply_weyman_differential(v::MacroVec; check::Bool=false)
   end
   result = MacroVec[apply_cohomology_projection(w; check)]
   for k in q:-1:1
+    @show k
     all_zero = true
     wctx = weyman_ctx(v)
     gc = graded_complex(wctx)
@@ -849,13 +860,16 @@ function apply_weyman_differential(v::MacroVec; check::Bool=false)
       end
       return project_to_weyman_complex!(reverse(result); check)
     end
-    w = apply_homotopy_map(w; check)
+    @time w = apply_homotopy_map(w; check)
+    @show "^ time for homotopy"
     isnothing(w) && break
     w = -sgn*w
-    w = apply_phi(w; check)
+    @time w = apply_phi(w; check)
+    @show "^ time for phi"
     isnothing(w) && break
     push!(result, apply_cohomology_projection(w; check))
   end
+  @show "projecting to the weyman complex"
   return project_to_weyman_complex!(reverse(result); check)
 end
 

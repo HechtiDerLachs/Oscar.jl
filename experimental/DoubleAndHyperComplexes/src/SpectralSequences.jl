@@ -770,6 +770,7 @@ function multiplication_map(
   # given complex; for instance, the Koszul complex has the same `n` polynomials 
   # all over itself, but with different signs. Using weak dictionaries should 
   # prevent us from memory overflows. 
+  @show "outer length: $(length(p))"
   cache = get!(ctx.mult_map_cache, (e0, d0, j)) do
     WeakKeyDict{typeof(p), Map}()
   end
