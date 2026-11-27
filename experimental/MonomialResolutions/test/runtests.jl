@@ -121,19 +121,39 @@ end
 
 @testset "resolutions with coefficients" begin
 
-n = 15
+n = 17
 sample = [UInt(rand(1:2^(n-1))) for _ in 1:2^(n-4)]
 bv = interreduce!([Oscar.BinVec(QQ, e) for e in sample])
 R, x = polynomial_ring(QQ, n)
 F = FreeMod(R, 1)
 v = F.(bv)
 g = [Oscar.groebner_basis!(bv)]
+GC.gc(true)
+GC.gc(true)
 @time res = free_resolution(sub_object(F, v));
-@time while !isempty(last(g))
-  push!(g, Oscar.interreduce!(Oscar._syzygies(last(g))))
-end;
+#GC.gc(true)
+#GC.gc(true)
+#@time while !isempty(last(g))
+#  push!(g, Oscar.interreduce!(Oscar._syzygies(last(g))))
+#end;
+GC.gc(true)
+GC.gc(true)
+@time gg = Oscar.resolution!(bv);
 length.(g)
+length.(gg)
 [ngens(res[i]) for i in 0:length(g)-1]
+
+for l in gg
+  for v in l
+    for (p, e, c) in v.entries
+      if !isnothing(c)
+        @show p, e, c
+        @show v
+      end
+    end
+  end
+end
+
 end
 
 @testset "even more resolutions" begin
