@@ -1,58 +1,79 @@
+# getters 
+coeff_parent(bv::BinVec{CT}) where {CT} = bv.parent::parent_type(CT)
+
 ### Constructors
-function BinVec(pos::UInt, exp::Vector{UInt}, coeff)
-  is_zero(coeff) && return BinVec()
-  return BinVec(pos, (exp << 1) | UInt(!is_one(coeff)))
+function BinVec(pos::UInt, mon::UInt, coeff::CT) where {CT <: FieldElem}
+  return BinVec{CT}(parent(coeff), Union{Tuple{UInt, UInt, CT}, Tuple{UInt, UInt, Nothing}}[(pos, mon << 1, coeff)])
+end
+  
+function BinVec(pos::UInt, mon::UInt, ::Nothing)
+  error("could not infer coefficient type")
 end
 
-function BinVec(exp::UInt, coeff=1)
-  is_zero(coeff) && return BinVec()
-  return BinVec(UInt(1), (exp << 1) | UInt(!is_one(coeff)))
+function BinVec(parent::Field, exp::UInt)
+  return BinVec(parent, UInt(1), exp)
 end
 
-function BinVec(v::FreeModElem{T}) where {T<:MPolyRingElem}
-  res = BinVec()
+function BinVec(exp::UInt, coeff::FieldElem)
+  return BinVec(parent(coeff), UInt(1), exp, coeff)
+end
+  
+function BinVec(parent::Field, list::Vector{<:Tuple}; sort::Bool=true)
+  result = BinVec(parent)
+  sizehint!(result.entries, length(list))
+  if sort
+    list = sort!(list; by=first)
+  end
+  for t in list
+    push!(result.entries, t)
+  end
+  return result
+end
+
+function BinVec(v::FreeModElem{T}) where {CT, T<:MPolyRingElem{CT}}
+  kk = coefficient_ring(base_ring(parent(v)))
+  res = BinVec(kk)
   sizehint!(res.entries, length(coordinates(v)))
   for (i, c) in coordinates(v)
-    push!(res.entries, (i, _encode_binary_vector(
-        only(AbstractAlgebra.exponent_vectors(c)), 
-        only(AbstractAlgebra.coefficients(c))))
-      )
+    e = _encode_binary_vector(only(AbstractAlgebra.exponent_vectors(c))) << 1
+    cc = only(AbstractAlgebra.coefficients(c))
+    if isone(cc)
+      push!(res.entries, (i, e, nothing))
+    elseif cc == -1
+      push!(res.entries, (i, xor(e, ~UInt(1)), nothing))
+    else
+      push!(res.entries, (i, e, cc))
+    end
   end
   return res
 end
 
 # Turn an exponent vector `exp` and a sign `coeff` into 
-# a single `UInt` to be used in `BinVec`s. 
-function _encode_binary_vector(exp::Vector{Int}, coeff)
-  mon = UInt(0)
-  if is_one(coeff) 
-    mon += 1
-  elseif !is_one(-coeff)
-    error("coefficient must be 1 or -1")
-  end
+# a pair `UInt, coeff` to be used in `BinVec`s. 
+function _encode_binary_vector(exp::Vector{Int})
   @assert length(exp) <= 63 "rings with more than 63 variables are not supported"
-  for (p, a) in enumerate(exp)
-    is_zero(a) && continue
-    @assert is_one(a) "monomial is not squarefree"
-    mon += 1 << p
-  end
+  mon = sum(UInt(1) << (p-1) for (p, a) in enumerate(exp) if is_one(a); init=UInt(0))
   return mon
 end
 
 # Constructor from squarefree monomials
-function BinVec(mon::MPolyRingElem)
-  return BinVec(UInt(1), _encode_binary_vector(
-                  only(AbstractAlgebra.exponent_vectors(mon)), 
-                  only(AbstractAlgebra.coefficients(mon))
-                 ))
+function BinVec(mon::MPolyRingElem{CT}) where {CT}
+  return BinVec(coefficient_ring(parent(mon)), UInt(1), 
+                _encode_binary_vector(only(AbstractAlgebra.exponent_vectors(mon))), 
+                only(AbstractAlgebra.coefficients(mon))
+               )
 end
 
 function Base.show(io::IO, bv::BinVec)
-  print(io, join([_binary_vector_to_str(mon)*"*e_$p" for (p, mon) in bv.entries], " + "))
+  if is_zero(bv)
+    print(io, 0)
+    return
+  end
+  print(io, join([_binary_vector_to_str(mon, c)*"*e_$p" for (p, mon, c) in bv.entries], " + "))
 end
 
-function _binary_vector_to_str(mon::UInt)
-  res_str = (is_zero(mon%2) ? "" : "-1*") * "[" 
+function _binary_vector_to_str(mon::UInt, ::Nothing)
+  res_str = (is_zero(mon%2) ? "" : "-") * "[" 
   for k in 1:63
     1 << k > mon && break
     res_str = res_str * (is_zero((mon >> k)%2) ? "0" : "1")
@@ -60,9 +81,22 @@ function _binary_vector_to_str(mon::UInt)
   return res_str * "]"
 end
 
+function _binary_vector_to_str(mon::UInt, c)
+  if !is_zero(mon%2)
+    c *= -1
+  end
+  res_str = "$c * [" 
+  for k in 1:63
+    1 << k > mon && break
+    res_str = res_str * (is_zero((mon >> k)%2) ? "0" : "1")
+  end
+  return res_str * "]"
+end
+
+
 ### arithmetic
-function deepcopy_internal(a::BinVec, d::IdDict)
-  res = BinVec()
+function deepcopy_internal(a::BinVec{CT}, d::IdDict) where {CT}
+  res = BinVec(coeff_parent(a))
   res.entries = deepcopy_internal(a.entries, d)
   return res
 end
@@ -70,51 +104,73 @@ end
 # deepcopy is expensive because of the IdDict. 
 # Since there are no parent-like fields here, 
 # we provide the cheaper copy.
-function copy(a::BinVec)
-  result = BinVec()
+function copy(a::BinVec{CT}) where {CT}
+  result = BinVec(coeff_parent(a))
   result.entries = copy(a.entries)
   return result
 end
 
-function +(a::BinVec, b::BinVec)
-  return addmul!(copy(a), b, 1)
+# internal method which only invokes `deepcopy` if absolutely necessary
+function _copy(a::BinVec{CT}) where {CT}
+  result = BinVec(coeff_parent(a))
+  sizehint!(result.entries, length(a.entries))
+  for (p, e, c) in a.entries
+    push!(result.entries, (p, e, _deepcopy(c)))
+  end
+  return result
 end
 
-function -(a::BinVec, b::BinVec)
-  return addmul!(copy(a), b, -1)
+_deepcopy(::Nothing) = nothing
+_deepcopy(a::FieldElem) = deepcopy(a)
+
+function +(a::BinVec{CT}, b::BinVec{CT}) where {CT}
+  return addmul!(copy(a), b, UInt(0), nothing)
+end
+
+function -(a::BinVec{CT}, b::BinVec{CT}) where {CT}
+  return addmul!(copy(a), b, UInt(1), nothing)
 end
 
 length(a::BinVec) = length(a.entries)
 
-function addmul!(a::BinVec, b::BinVec, c)
-  @assert is_one(c) || is_one(-c) "scalar multiplication by elements different from ±1 is not allowed"
-  result = BinVec()
+function addmul!(a::BinVec{CT}, b::BinVec{CT}, ex::UInt, ::Nothing) where {CT}
+  result = BinVec(coeff_parent(a))
   sizehint!(result.entries, length(a)+length(b))
   i = 1
   j = 1
   while !(i>length(a) || j>length(b))
-    p, mi = a.entries[i]
-    q, mj = b.entries[j]
+    p, mi, ci = a.entries[i]
+    q, mj, cj = b.entries[j]
     if p < q
-      push!(result.entries, (p, mi))
+      push!(result.entries, (p, mi, ci))
       i += 1
       continue
     elseif q < p
-      push!(result.entries, (q, xor(mj, c == -1))) # xor does the change of signs 
+      @assert mj & ex < 2 "multiplication leads to square"
+      push!(result.entries, (q, (xor(mj, ex) & ~UInt(1)) + (mj + ex)%2, cj))
       j += 1
       continue
     end
     # p == q
-    mj_signed = xor(mj, c == -1)
-    tst = xor(mi, mj_signed)
+    @assert mj & ex < 2 "multiplication leads to square"
+    mj_ex = (xor(mj, ex) & ~UInt(1)) + (mj + ex)%2
+    tst = xor(mi, mj_ex)
     @assert tst < 2 "more than one monomial is not allowed per component"
-    if tst == 1 # different signs of the monomials, hence cancellation
+    if isnothing(ci) && isnothing(cj) && is_one((mi%2 + mj_ex%2)%2)
       i += 1
       j += 1
       continue
     end
-    # both monomials have the same signs, hence we get 2*m = -m over 𝔽₃
-    push!(result.entries, (q, xor(mi, 1)))
+    new_coeff = __linear_combination(Val{mi%2}, ci, Val{mj_ex%2}, cj, nothing)
+    if is_zero(new_coeff)
+      # do nothing
+    elseif is_one(new_coeff)
+      push!(result.entries, (q, mi & ~UInt(1), nothing))
+    elseif new_coeff == -1
+      push!(result.entries, (q, (mi & ~UInt(1)) + UInt(1), nothing))
+    else
+      push!(result.entries, (q, mi & ~UInt(1), coeff_parent(a)(new_coeff)))
+    end
     i += 1
     j += 1
   end
@@ -123,49 +179,54 @@ function addmul!(a::BinVec, b::BinVec, c)
     i += 1
   end
   while j <= length(b)
-    q, mj = b.entries[j]
-    push!(result.entries, (q, xor(mj, c == -1)))
+    p, e, cc = b.entries[j]
+    @assert e & ex < 2 "multiplication leads to square"
+    e_ex = (xor(e, ex) & ~UInt(1)) + (e%2 + ex%2)%2
+    push!(result.entries, (p, e_ex, cc))
     j += 1
   end
-
   return result
 end
 
-function addmul!(a::BinVec, b::BinVec, c::UInt)
-  result = BinVec()
+function addmul!(a::BinVec{CT}, b::BinVec{CT}, ex::UInt, c::CT) where {CT}
+  result = BinVec(coeff_parent(a))
   sizehint!(result.entries, length(a)+length(b))
   i = 1
   j = 1
   while !(i>length(a) || j>length(b))
-    p, mi = a.entries[i]
-    q, mj = b.entries[j]
+    p, mi, ci = a.entries[i]
+    q, mj, cj = b.entries[j]
     if p < q
-      push!(result.entries, (p, mi))
+      push!(result.entries, (p, mi, ci))
       i += 1
       continue
     elseif q < p
-      @assert (mj & c < 2) "multiplication leads to exponents > 1"
-      mj_c = mj | c # the product up to the first bit
-      mj_c -= mj_c%2 # delete the first bit
-      mj_c += (mj%2 + c%2)%2
-      push!(result.entries, (q, mj_c))
+      @assert mj & ex < 2 "multiplication leads to square"
+      if isnothing(c) || is_one(c)
+        push!(result.entries, (q, (xor(mj, ex) & ~UInt(1)) + (mj + ex)%2, cj))
+      elseif c == -1
+        push!(result.entries, (q, (xor(mj, ex) & ~UInt(1)) + (mj + ex + UInt(1))%2, cj))
+      else
+        push!(result.entries, (q, (xor(mj, ex) & ~UInt(1)) + (mj + ex)%2, _mul(c, cj)))
+      end
       j += 1
       continue
     end
     # p == q
-    @assert (mj & c < 2) "multiplication leads to exponents > 1"
-    mj_c = mj | c # the product up to the first bit
-    mj_c -= mj_c%2 # delete the first bit
-    mj_c += (mj%2 + c%2)%2
-    tst = xor(mi, mj_c)
-    @assert tst < 2 "more than two monomials in one position are not supported"
-    if tst == 1 # the case of cancellation
-      i += 1
-      j += 1
-      continue
+    @assert mj & ex < 2 "multiplication leads to square"
+    mj_ex = (xor(mj, ex) & ~UInt(1)) + (mj + ex)%2
+    tst = xor(mi, mj_ex)
+    @assert tst < 2 "more than one monomial is not allowed per component"
+    new_coeff = __linear_combination(Val{mi%2}, ci, Val{mj_ex%2}, cj, c)
+    if is_zero(new_coeff)
+      # do nothing
+    elseif is_one(new_coeff)
+      push!(result.entries, (q, mi & ~UInt(1), nothing))
+    elseif new_coeff == -1
+      push!(result.entries, (q, (mi & ~UInt(1)) + UInt(1), nothing))
+    else
+      push!(result.entries, (q, mi & ~UInt(1), coeff_parent(a)(new_coeff)))
     end
-    # no cancellation, hence arithmetic in 𝔽₃
-    push!(result.entries, (q, xor(mi, 1)))
     i += 1
     j += 1
   end
@@ -174,47 +235,152 @@ function addmul!(a::BinVec, b::BinVec, c::UInt)
     i += 1
   end
   while j <= length(b)
-    q, mj = b.entries[j]
-    mj_c = mj | c # the product up to the first bit
-    mj_c -= mj_c%2 # delete the first bit
-    mj_c += (mj%2 + c%2)%2
-    push!(result.entries, (q, mj_c))
+    p, e, cc = b.entries[j]
+    @assert e & ex < 2 "multiplication leads to square"
+    e_ex = (xor(e, ex) & ~UInt(1)) + (e + ex)%2
+    if isnothing(c) || is_one(c)
+      push!(result.entries, (p, e_ex, cc))
+    elseif c == -1
+      push!(result.entries, (p, e_ex & ~UInt(1) + (e_ex + UInt(1))%2, cc))
+    else
+      push!(result.entries, (p, e_ex, _mul(cc, c)))
+    end
     j += 1
   end
-
   return result
 end
+
+# A lookup table for computing the linear combination for same exponent vector case in addmul!
+__linear_combination(::Type{Val{UInt(0)}}, c1, ::Type{Val{UInt(0)}}, c2, c) = c1 + c*c2
+__linear_combination(::Type{Val{UInt(1)}}, c1, ::Type{Val{UInt(0)}}, c2, c) = c*c2 - c1
+__linear_combination(::Type{Val{UInt(0)}}, c1, ::Type{Val{UInt(1)}}, c2, c) = c1 - c*c2
+__linear_combination(::Type{Val{UInt(1)}}, c1, ::Type{Val{UInt(1)}}, c2, c) = -(c1 + c*c2)
+__linear_combination(::Type{Val{UInt(0)}}, c1, ::Type{Val{UInt(0)}}, c2, ::Nothing) = c1 + c2
+__linear_combination(::Type{Val{UInt(1)}}, c1, ::Type{Val{UInt(0)}}, c2, ::Nothing) = c2 - c1
+__linear_combination(::Type{Val{UInt(0)}}, c1, ::Type{Val{UInt(1)}}, c2, ::Nothing) = c1 - c2
+__linear_combination(::Type{Val{UInt(1)}}, c1, ::Type{Val{UInt(1)}}, c2, ::Nothing) = -(c1 + c2)
+__linear_combination(::Type{Val{UInt(0)}}, ::Nothing, ::Type{Val{UInt(0)}}, c2, c) = 1 + c*c2
+__linear_combination(::Type{Val{UInt(1)}}, ::Nothing, ::Type{Val{UInt(0)}}, c2, c) = c*c2 - 1
+__linear_combination(::Type{Val{UInt(0)}}, ::Nothing, ::Type{Val{UInt(1)}}, c2, c) = 1 - c*c2
+__linear_combination(::Type{Val{UInt(1)}}, ::Nothing, ::Type{Val{UInt(1)}}, c2, c) = -(1 + c*c2)
+__linear_combination(::Type{Val{UInt(0)}}, c1, ::Type{Val{UInt(0)}}, ::Nothing, c) = c1 + c
+__linear_combination(::Type{Val{UInt(1)}}, c1, ::Type{Val{UInt(0)}}, ::Nothing, c) = c - c1
+__linear_combination(::Type{Val{UInt(0)}}, c1, ::Type{Val{UInt(1)}}, ::Nothing, c) = c1 - c
+__linear_combination(::Type{Val{UInt(1)}}, c1, ::Type{Val{UInt(1)}}, ::Nothing, c) = -(c1 + c)
+__linear_combination(::Type{Val{UInt(0)}}, ::Nothing, ::Type{Val{UInt(0)}}, ::Nothing, c) = 1 + c
+__linear_combination(::Type{Val{UInt(1)}}, ::Nothing, ::Type{Val{UInt(0)}}, ::Nothing, c) = c - 1
+__linear_combination(::Type{Val{UInt(0)}}, ::Nothing, ::Type{Val{UInt(1)}}, ::Nothing, c) = 1 - c
+__linear_combination(::Type{Val{UInt(1)}}, ::Nothing, ::Type{Val{UInt(1)}}, ::Nothing, c) = -(1 + c)
+__linear_combination(::Type{Val{UInt(0)}}, ::Nothing, ::Type{Val{UInt(0)}}, c2, ::Nothing) = 1 + c2
+__linear_combination(::Type{Val{UInt(1)}}, ::Nothing, ::Type{Val{UInt(0)}}, c2, ::Nothing) = c2 - 1
+__linear_combination(::Type{Val{UInt(0)}}, ::Nothing, ::Type{Val{UInt(1)}}, c2, ::Nothing) = 1 - c2
+__linear_combination(::Type{Val{UInt(1)}}, ::Nothing, ::Type{Val{UInt(1)}}, c2, ::Nothing) = -(1 + c2)
+__linear_combination(::Type{Val{UInt(0)}}, c1, ::Type{Val{UInt(0)}}, ::Nothing, ::Nothing) = c1 + 1
+__linear_combination(::Type{Val{UInt(1)}}, c1, ::Type{Val{UInt(0)}}, ::Nothing, ::Nothing) = 1 - c1
+__linear_combination(::Type{Val{UInt(0)}}, c1, ::Type{Val{UInt(1)}}, ::Nothing, ::Nothing) = c1 - 1
+__linear_combination(::Type{Val{UInt(1)}}, c1, ::Type{Val{UInt(1)}}, ::Nothing, ::Nothing) = -(c1 + 1)
+__linear_combination(::Type{Val{UInt(0)}}, ::Nothing, ::Type{Val{UInt(0)}}, ::Nothing, ::Nothing) = 2
+__linear_combination(::Type{Val{UInt(1)}}, ::Nothing, ::Type{Val{UInt(0)}}, ::Nothing, ::Nothing) = 0
+__linear_combination(::Type{Val{UInt(0)}}, ::Nothing, ::Type{Val{UInt(1)}}, ::Nothing, ::Nothing) = 0
+__linear_combination(::Type{Val{UInt(1)}}, ::Nothing, ::Type{Val{UInt(1)}}, ::Nothing, ::Nothing) = -2
+
+# internal multiplication with `nothing` standing for 1
+_mul(::Nothing, ::Nothing) = nothing
+_mul(c, ::Nothing) = c
+_mul(::Nothing, c) = c
+_mul(a, b) = a*b
 
 function Base.:(==)(a::BinVec, b::BinVec)
-  return a.entries == b.entries
+  length(a.entries) != length(b.entries) && return false
+  for (aa, bb) in zip(a.entries, b.entries)
+    p, m, c = aa
+    q, n, d = bb
+    p == q || return false
+    xor(m, n) < 2 || return false
+    _cmp_coeff(Val{m%2}, c, Val{n%2}, d) || return false
+  end
+  return true
 end
+
+_cmp_coeff(::Type{Val{UInt(0)}}, c, ::Type{Val{UInt(0)}}, d) = c == d
+_cmp_coeff(::Type{Val{UInt(1)}}, c, ::Type{Val{UInt(0)}}, d) = is_zero(c + d)
+_cmp_coeff(::Type{Val{UInt(0)}}, c, ::Type{Val{UInt(1)}}, d) = is_zero(c + d)
+_cmp_coeff(::Type{Val{UInt(1)}}, c, ::Type{Val{UInt(1)}}, d) = c == d
+_cmp_coeff(::Type{Val{UInt(0)}}, ::Nothing, ::Type{Val{UInt(0)}}, d) = is_one(d)
+_cmp_coeff(::Type{Val{UInt(1)}}, ::Nothing, ::Type{Val{UInt(0)}}, d) = d == -1
+_cmp_coeff(::Type{Val{UInt(0)}}, ::Nothing, ::Type{Val{UInt(1)}}, d) = d == -1
+_cmp_coeff(::Type{Val{UInt(1)}}, ::Nothing, ::Type{Val{UInt(1)}}, d) = is_one(d)
+_cmp_coeff(::Type{Val{UInt(0)}}, c, ::Type{Val{UInt(0)}}, ::Nothing) = is_one(c)
+_cmp_coeff(::Type{Val{UInt(1)}}, c, ::Type{Val{UInt(0)}}, ::Nothing) = c == -1
+_cmp_coeff(::Type{Val{UInt(0)}}, c, ::Type{Val{UInt(1)}}, ::Nothing) = c == -1
+_cmp_coeff(::Type{Val{UInt(1)}}, c, ::Type{Val{UInt(1)}}, ::Nothing) = is_one(c)
+_cmp_coeff(::Type{Val{UInt(0)}}, ::Nothing, ::Type{Val{UInt(0)}}, ::Nothing) = true
+_cmp_coeff(::Type{Val{UInt(1)}}, ::Nothing, ::Type{Val{UInt(0)}}, ::Nothing) = false
+_cmp_coeff(::Type{Val{UInt(0)}}, ::Nothing, ::Type{Val{UInt(1)}}, ::Nothing) = false
+_cmp_coeff(::Type{Val{UInt(1)}}, ::Nothing, ::Type{Val{UInt(1)}}, ::Nothing) = true
+
 
 function hash(a::BinVec, u::UInt)
-  return hash(a.entries, u)
+  for (p, q, c) in a.entries
+    u = hash(_hash_helper(p, q, c), u)
+  end
+  return u
 end
 
-function mul!(e, a::BinVec)
-  return mul!(UInt(e), a)
-end
+# We need to bring the combination of the sign in `e` and the coefficient 
+# into a standard form. 
+_hash_helper(p::UInt, e::UInt, ::Nothing) = (p, e)
+_hash_helper(p::UInt, e::UInt, c) = (p, ~UInt(1) & e, (-1)^(e%2)*c)
 
-function mul!(e::UInt, a::BinVec)
-  for (k, (p, mon)) in enumerate(a.entries)
+# Usual multiplication uses coercion. Only unsigned integers are treated as 
+# signed exponent vectors. 
+function _mul!(e::UInt, a::BinVec)
+  for (k, (p, mon, c)) in enumerate(a.entries)
     @assert is_zero((mon & e) >> 1) "result of multiplication would have a square"
-    a.entries[k] = (p, (xor(mon, e) & ~UInt(1)) + (mon%2 + e%2)%2)
+    a.entries[k] = (p, (xor(mon, e) & ~UInt(1)) + (mon%2 + e%2)%2, c)
+  end
+  return a
+end
+
+function _mul!(c, a::BinVec)
+  return _mul!(coeff_parent(a)(c), a)
+end
+
+# `nothing` is treated as one (as usual)
+function _mul!(::Nothing, a::BinVec)
+  return a
+end
+
+function _mul!(c::FieldElem, a::BinVec)
+  @assert parent(c) === coeff_parent(a) "wrong parent"
+  is_one(c) && return a
+  c == -1 && return _mul!(UInt(1), a)
+  for (k, (p, e, d)) in enumerate(a.entries)
+    nc = _mul(c, d)
+    if isnothing(nc)
+      isnothing(d) && continue # nothing left to do
+      a.entries[k] = (p, e, nothing)
+    elseif is_one(nc)
+      isnothing(d) && continue # nothing left to do
+      a.entries[k] = (p, e, nothing)
+    elseif nc == -1
+      a.entries[k] = (p, xor(e, ~UInt(1)), nothing)
+    end
+    a.entries[k] = (p, e, nc)
   end
   return a
 end
 
 function *(e, a::BinVec)
-  return UInt(e)*a
+  return _mul!(e, _copy(a))
 end
 
 function *(e::UInt, a::BinVec)
-  return mul!(e::UInt, copy(a))
+  return _mul!(e, _copy(a))
 end
 
 function -(a::BinVec)
-  return 1*a
+  return _mul!(UInt(1), _copy(a))
 end
 
 lead(a::BinVec) = first(a.entries)
@@ -244,7 +410,7 @@ end
 # and lexicographic order on the terms. Since everything is 
 # monomial in the terms, the latter order does not really matter
 # in practice, anyway.
-function groebner_basis!(gens::Vector{BinVec})
+function groebner_basis!(gens::Vector{BinVec{CT}}) where {CT}
   gens = interreduce!(gens)
   pairs_todo = [(i, j) for i in 1:length(gens)-1 for j in i+1:length(gens)]
   # two variables for debugging
@@ -256,20 +422,20 @@ function groebner_basis!(gens::Vector{BinVec})
     u = gens[i]
     v = gens[j]
     isone(length(u)) && isone(length(v)) && continue # no tails to produce something new
-    p, m1 = lead(u)
-    q, m2 = lead(v)
+    p, m1, c1 = lead(u)
+    q, m2, c2 = lead(v)
     p != q && continue # no cancellation possible
     l = _binary_vector_lcm(m1, m2)
     n1 = _binary_vector_div(l, m1)
     n2 = _binary_vector_div(l, m2)
-    g = n1*u
-    g = addmul!(g, v, xor(n2, UInt(1)))
+    g = _mul!(c2, n1*u)
+    g = addmul!(g, v, xor(n2, UInt(1)), c1) #addmul!(g, xor(n2, UInt(1)) * v, c1)
     g = reduce!(g, gens)
     is_zero(g) && continue
     n = length(gens)
-    qq, _ = lead(g)
+    qq, _, _ = lead(g)
     nonzero_reductions += 1
-    append!(pairs_todo, [(i, n+1) for (i, g) in enumerate(gens) if lead(g)[1] == qq])
+    append!(pairs_todo, [(i, n+1) for (i, g) in enumerate(gens) if first(lead(g)) == qq])
     push!(gens, g)
   end
   #@show counter, nonzero_reductions
@@ -277,7 +443,7 @@ function groebner_basis!(gens::Vector{BinVec})
 end
 
 # Reduce an element `a` via `gens`. 
-function reduce!(a::BinVec, gens::Vector{BinVec})
+function reduce!(a::BinVec{CT}, gens::Vector{BinVec{CT}}) where {CT}
   is_zero(a) && return a
   for b in gens
     a = reduce!(a, b)
@@ -290,16 +456,16 @@ end
 function reduce!(a::BinVec, b::BinVec)
   is_zero(b) && return a
   is_zero(a) && return a
-  p, mon = lead(b)
+  p, mon, cb = lead(b)
   # find the index in `a` which has `p`
   down = 1
   up = length(a)
-  q, _ = last(a.entries)
+  q, _, _ = last(a.entries)
   q < p && return a # p is out of bounds for `a`, no cancellation possible
   if p == q # we hit the spot directly
     down = up
   end
-  q, _ = first(a.entries)
+  q, _, _ = first(a.entries)
   q > p && return a # again: out of bounds
   if p == q 
     up = down
@@ -315,13 +481,18 @@ function reduce!(a::BinVec, b::BinVec)
       up = middle - 1
     end
   end
-  q, e = a.entries[up]
+  q, e, ca = a.entries[up]
   q != p && return a # no overlap and hence no cancellation
   success, fac = _binary_vector_divides(e, mon)
   !success && return a
-  a = addmul!(a, b, xor(fac, UInt(1)))
+  a = addmul!(a, b, xor(fac, UInt(1)), _div(ca, cb)) # addmul!(a, xor(fac, UInt(1))*b, _div(ca, cb))
   return a
 end
+
+_div(::Nothing, ::Nothing) = nothing
+_div(a, ::Nothing) = a
+_div(::Nothing, b) = b
+_div(a, b) = divexact(a, b)
 
 # Compute an interreduced generating set.
 # Caution! This is not really the case here, because the 
@@ -331,8 +502,8 @@ end
 # the order of the reduction, as would be desirable, 
 # leaves the scope of the available arithmetic here by 
 # introducing monomials with quadratic terms.
-function interreduce!(gens::Vector{BinVec})
-  result = sizehint!(Vector{BinVec}(), size(gens))
+function interreduce!(gens::Vector{BinVec{CT}}) where {CT}
+  result = sizehint!(Vector{BinVec{CT}}(), size(gens))
   for (k, v) in enumerate(gens)
     for (ind, g) in enumerate(result)
       result[ind] = reduce!(g, v)
@@ -385,44 +556,45 @@ end
 # This is a straightforward implementation of the iteration step 
 # in the Schreyer resolution. In particular, it is assumed that 
 # the input is a Groebner basis!
-function _syzygies(gens::Vector{BinVec})
-  result = BinVec[]
+function _syzygies(gens::Vector{BinVec{CT}}) where {CT}
+  result = BinVec{CT}[]
   for (i, v) in enumerate(gens)
-    p, m = lead(v)
+    p, m, cv = lead(v)
     for j in i+1:length(gens)
       w = gens[j]
-      q, n = lead(w)
+      q, n, d = lead(w)
       q > p && break
       # compute the s-polynomial and initialize the syzygy
       l = _binary_vector_lcm(m, n)
       s = _binary_vector_div(l, m)
       t = _binary_vector_div(l, n)
-      rem = s*v
-      t = xor(t, 1) # xor takes care of sign change
-      rem = addmul!(rem, w, t)
-      new_syz = BinVec([(UInt(i), s), (UInt(j), t)])
+      rem = _mul!(d, s*v)
+      t = xor(t, UInt(1)) # xor takes care of sign change
+      rem = addmul!(rem, w, t, cv) # isnothing(cv) ? addmul!(rem, w, t) : addmul!(rem, _mul(t, w), cv)
+      new_syz = BinVec(coeff_parent(v), [(UInt(i), s, d), (UInt(j), t, cv)])
       # tail reduction
       for k in j+1:length(gens)
         is_zero(rem) && break
-        pp, mm = lead(rem)
+        pp, mm, cc = lead(rem)
         w = gens[k]
-        q, n = lead(w)
+        q, n, d = lead(w)
         q != pp && continue # nothing to cancel here
         success, c = _binary_vector_divides(mm, n)
-        c = xor(c, 1) # change sign of c
         !success && continue
-        rem = addmul!(rem, w, c)
-        push!(new_syz.entries, (UInt(k), c))
+        c = xor(c, UInt(1)) # change sign of c
+        red_coeff = _div(cc, d)
+        rem = addmul!(rem, w, c, red_coeff)
+        push!(new_syz.entries, (UInt(k), c, red_coeff))
       end
       @assert is_zero(rem) "remainder is not zero"
       push!(result, new_syz)
     end
   end
-# # code for checking that we have indeed created a syzygy (for debugging)
+  # code for checking that we have indeed created a syzygy (for debugging)
 # for s in result
-#   tst = BinVec()
-#   for (p, a) in s.entries
-#     tst = addmul!(tst, gens[p], a)
+#   tst = BinVec(coeff_parent(s))
+#   for (p, a, c) in s.entries
+#     tst = addmul!(tst, a*gens[p], c)
 #   end
 #   @assert is_zero(tst)
 # end
@@ -435,7 +607,7 @@ function (F::FreeMod)(a::BinVec)
   kk = coefficient_ring(R)
   n = ngens(R)
   entries = sizehint!(Tuple{Int, elem_type(R)}[], length(a.entries))
-  for (i, e) in a.entries
+  for (i, e, c) in a.entries
     # Allocating everything at once in the beginning is cheaper...
     d = [0 for _ in 1:n]
     for (k, c) in enumerate(digits(e >> 1; base=2))
@@ -444,7 +616,8 @@ function (F::FreeMod)(a::BinVec)
     # ...than this:
     #d = digits(e >> 1; base=2)
     #append!(d, [0 for _ in (length(d)+1):n])
-    push!(entries, (i, R([is_zero(e%2) ? one(kk) : -one(kk)], [d])))
+    cc = isnothing(c) ? one(kk) : c::elem_type(kk)
+    push!(entries, (i, R([is_zero(e%2) ? cc : -cc], [d])))
   end
   return F(sparse_row(R, entries))
 end
@@ -452,25 +625,26 @@ end
 function (R::MPolyRing)(a::BinVec)
   kk = coefficient_ring(R)
   n = ngens(R)
-  p, e = only(a.entries)
+  p, e, c = only(a.entries)
   ee = digits(e >> 1; base=2)
   append!(ee, [0 for _ in length(ee)+1:n])
-  return R([is_zero(e%2) ? one(kk) : -one(kk)], [ee])
+  cc = isnothing(c) ? one(kk) : c::elem_type(kk)
+  return R([is_zero(e%2) ? cc : -cc], [ee])
 end
 
 # helper function to compare `BinVec`s with the implicit monomial 
 # order via their leading terms.
 function _lt(a::BinVec, b::BinVec)
-  p, e = lead(a)
-  q, f = lead(b)
+  p, e, _ = lead(a)
+  q, f, _ = lead(b)
   p < q && return false
   p > q && return true
   return e >> 1 < f >> 1
 end
 
 function _lt_rev_pos(a::BinVec, b::BinVec)
-  p, e = lead(a)
-  q, f = lead(b)
+  p, e, _ = lead(a)
+  q, f, _ = lead(b)
   p > q && return false
   p < q && return true
   return e >> 1 < f >> 1
@@ -479,17 +653,17 @@ end
 # Compute a free resolution of the submodule generated by `g`.
 # This is an implementation of a Schreyer resolution and we 
 # assume `g` to be a Groebner basis. 
-function resolution!(g::Vector{BinVec}; 
+function resolution!(g::Vector{BinVec{CT}}; 
     is_minimal::Bool=false, is_sorted::Bool=false, 
     upper_bound::Union{AbstractAlgebra.PosInf, Int}=AbstractAlgebra.PosInf()
-  )
+  ) where {CT}
   if !is_minimal
     g = interreduce!(g)
   end
   if !is_sorted
     g = sort!(g; lt=_lt)
   end
-  result = Vector{BinVec}[g]
+  result = Vector{BinVec{CT}}[g]
   # outer loop iterating over the homological index of the resolution
   while !isempty(last(result)) && length(result) <= upper_bound
     vd = last(result)
@@ -538,7 +712,7 @@ function resolution!(g::Vector{BinVec};
         s = _binary_vector_div(ee, e)
         t = _binary_vector_div(ee, f)
         t = xor(t, 1) # put a negative sign on t
-        rem = addmul!(s*a, b, t)
+        rem = addmul!(s*a, b, t, nothing) #addmul!(s*a, b, t)
         @assert is_zero(rem) || first(lead(rem)) > pp
         new_syz = BinVec([(UInt(i+init), s), (UInt(j+init), t)])
         sizehint!(new_syz.entries, length(rem))
@@ -556,7 +730,7 @@ function resolution!(g::Vector{BinVec};
             success, c = _binary_vector_divides(mm, nn)
             !success && continue
             c = xor(c, 1) # change sign of c
-            rem = addmul!(rem, w, c)
+            rem = addmul!(rem, w, c, nothing) #addmul!(rem, w, c)
             push!(new_syz.entries, (UInt(k), c))
             break
           end
