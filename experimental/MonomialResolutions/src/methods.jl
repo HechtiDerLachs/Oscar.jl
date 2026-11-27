@@ -137,19 +137,17 @@ function addmul!(a::BinVec{CT}, b::BinVec{CT}, ex::UInt, ::Nothing) where {CT}
   sizehint!(result.entries, length(a)+length(b))
   i = 1
   j = 1
-  p, mi, ci = a.entries[i]
-  q, mj, cj = b.entries[j]
   while !(i>length(a) || j>length(b))
+    p, mi, ci = a.entries[i]
+    q, mj, cj = b.entries[j]
     if p < q
-      push!(result.entries, a.entries[i])
+      push!(result.entries, _deepcopy(a.entries[i]))
       i += 1
-      p, mi, ci = a.entries[i]
       continue
     elseif q < p
       @assert mj & ex < 2 "multiplication leads to square"
-      push!(result.entries, (q, (xor(mj, ex) & ~UInt(1)) + (mj + ex)%2, cj))
+      push!(result.entries, (q, (xor(mj, ex) & ~UInt(1)) + (mj%2 + ex%2)%2, cj))
       j += 1
-      q, mj, cj = b.entries[j]
       continue
     end
     # p == q
@@ -174,8 +172,6 @@ function addmul!(a::BinVec{CT}, b::BinVec{CT}, ex::UInt, ::Nothing) where {CT}
     end
     i += 1
     j += 1
-    q, mj, cj = b.entries[j]
-    p, mi, ci = a.entries[i]
   end
   while i <= length(a)
     push!(result.entries, a.entries[i])
@@ -196,13 +192,12 @@ function addmul!(a::BinVec{CT}, b::BinVec{CT}, ex::UInt, c::CT) where {CT}
   sizehint!(result.entries, length(a)+length(b))
   i = 1
   j = 1
-  p, mi, ci = a.entries[i]
-  q, mj, cj = b.entries[j]
   while !(i>length(a) || j>length(b))
+    p, mi, ci = a.entries[i]
+    q, mj, cj = b.entries[j]
     if p < q
       push!(result.entries, (p, mi, ci))
       i += 1
-      p, mi, ci = a.entries[i]
       continue
     elseif q < p
       @assert mj & ex < 2 "multiplication leads to square"
@@ -214,7 +209,6 @@ function addmul!(a::BinVec{CT}, b::BinVec{CT}, ex::UInt, c::CT) where {CT}
         push!(result.entries, (q, (xor(mj, ex) & ~UInt(1)) + (mj + ex)%2, _mul(c, cj)))
       end
       j += 1
-      q, mj, cj = b.entries[j]
       continue
     end
     # p == q
@@ -234,8 +228,6 @@ function addmul!(a::BinVec{CT}, b::BinVec{CT}, ex::UInt, c::CT) where {CT}
     end
     i += 1
     j += 1
-    p, mi, ci = a.entries[i]
-    q, mj, cj = b.entries[j]
   end
   while i <= length(a)
     push!(result.entries, a.entries[i])
