@@ -113,15 +113,14 @@ end
 # internal method which only invokes `deepcopy` if absolutely necessary
 function _copy(a::BinVec{CT}) where {CT}
   result = BinVec(coeff_parent(a))
-  sizehint!(result.entries, length(a.entries))
-  for (p, e, c) in a.entries
-    push!(result.entries, (p, e, _deepcopy(c)))
-  end
+  result.entries = _deepcopy.(a.entries)
   return result
 end
 
 _deepcopy(::Nothing) = nothing
 _deepcopy(a::FieldElem) = deepcopy(a)
+_deepcopy(t::Tuple{UInt, UInt, Nothing}) = (t[1], t[2], nothing)
+_deepcopy(t::Tuple{UInt, UInt, CT}) where {CT <: FieldElem} = (t[1], t[2], deepcopy(t[3]))
 
 function +(a::BinVec{CT}, b::BinVec{CT}) where {CT}
   return addmul!(copy(a), b, UInt(0), nothing)
@@ -138,17 +137,19 @@ function addmul!(a::BinVec{CT}, b::BinVec{CT}, ex::UInt, ::Nothing) where {CT}
   sizehint!(result.entries, length(a)+length(b))
   i = 1
   j = 1
+  p, mi, ci = a.entries[i]
+  q, mj, cj = b.entries[j]
   while !(i>length(a) || j>length(b))
-    p, mi, ci = a.entries[i]
-    q, mj, cj = b.entries[j]
     if p < q
-      push!(result.entries, (p, mi, ci))
+      push!(result.entries, a.entries[i])
       i += 1
+      p, mi, ci = a.entries[i]
       continue
     elseif q < p
       @assert mj & ex < 2 "multiplication leads to square"
       push!(result.entries, (q, (xor(mj, ex) & ~UInt(1)) + (mj + ex)%2, cj))
       j += 1
+      q, mj, cj = b.entries[j]
       continue
     end
     # p == q
@@ -173,6 +174,8 @@ function addmul!(a::BinVec{CT}, b::BinVec{CT}, ex::UInt, ::Nothing) where {CT}
     end
     i += 1
     j += 1
+    q, mj, cj = b.entries[j]
+    p, mi, ci = a.entries[i]
   end
   while i <= length(a)
     push!(result.entries, a.entries[i])
@@ -193,12 +196,13 @@ function addmul!(a::BinVec{CT}, b::BinVec{CT}, ex::UInt, c::CT) where {CT}
   sizehint!(result.entries, length(a)+length(b))
   i = 1
   j = 1
+  p, mi, ci = a.entries[i]
+  q, mj, cj = b.entries[j]
   while !(i>length(a) || j>length(b))
-    p, mi, ci = a.entries[i]
-    q, mj, cj = b.entries[j]
     if p < q
       push!(result.entries, (p, mi, ci))
       i += 1
+      p, mi, ci = a.entries[i]
       continue
     elseif q < p
       @assert mj & ex < 2 "multiplication leads to square"
@@ -210,6 +214,7 @@ function addmul!(a::BinVec{CT}, b::BinVec{CT}, ex::UInt, c::CT) where {CT}
         push!(result.entries, (q, (xor(mj, ex) & ~UInt(1)) + (mj + ex)%2, _mul(c, cj)))
       end
       j += 1
+      q, mj, cj = b.entries[j]
       continue
     end
     # p == q
@@ -229,6 +234,8 @@ function addmul!(a::BinVec{CT}, b::BinVec{CT}, ex::UInt, c::CT) where {CT}
     end
     i += 1
     j += 1
+    p, mi, ci = a.entries[i]
+    q, mj, cj = b.entries[j]
   end
   while i <= length(a)
     push!(result.entries, a.entries[i])
@@ -654,9 +661,12 @@ end
 # This is an implementation of a Schreyer resolution and we 
 # assume `g` to be a Groebner basis. 
 function resolution!(g::Vector{BinVec{CT}}; 
-    is_minimal::Bool=false, is_sorted::Bool=false, 
+    is_minimal::Bool=false, is_sorted::Bool=false, is_normalized::Bool=false,
     upper_bound::Union{AbstractAlgebra.PosInf, Int}=AbstractAlgebra.PosInf()
   ) where {CT}
+  if !is_normalized
+    g = normalize!(g)
+  end
   if !is_minimal
     g = interreduce!(g)
   end
@@ -664,6 +674,8 @@ function resolution!(g::Vector{BinVec{CT}};
     g = sort!(g; lt=_lt)
   end
   result = Vector{BinVec{CT}}[g]
+  is_empty(g) && return result
+  kk = coeff_parent(first(g))
   # outer loop iterating over the homological index of the resolution
   while !isempty(last(result)) && length(result) <= upper_bound
     vd = last(result)
@@ -674,29 +686,31 @@ function resolution!(g::Vector{BinVec{CT}};
     lookup = Dict{Int, Int}()
     q = 0
     for (k, v) in enumerate(vd)
-      p, _ = lead(v)
+      p, _, c = lead(v)
+      isnothing(c) || error("non-trivial coefficient in leading term detected")
       p == q && continue
       @assert p > q
       lookup[p] = k
       q = p
     end
     # Allocate a variable for the result of the iteration step.
-    next = BinVec[]
+    next = BinVec{CT}[]
     # The outer iteration over the pairs is by blocks of elements 
     # with leading term in one particular position. 
     p = UInt(0)
     init = 0 # records the necessary offset
     while init < length(vd)
-      p, e = lead(vd[init+1])
+      p, e, _ = lead(vd[init+1])
       # We record the leading terms and compute a small Groebner 
       # basis for the syzygies of this monomial ideal. 
       leads = [e]
-      lleads = [BinVec([(p, e)])]
+      # we ignore non-trivial coefficients for leading ideals
+      lleads = [BinVec(kk, p, e)]
       for i in (init+2):length(vd)
-        q, e = lead(vd[i])
+        q, e, _ = lead(vd[i])
         q > p && break
         push!(leads, e)
-        push!(lleads, BinVec([(q, e)]))
+        push!(lleads, BinVec(kk, q, e))
       end
       min_pairs = minimal_pairs(lleads) # TODO: This step can be improved!
       #min_pairs = minimal_pairs(leads) # Experimental version which still gives unreasonably big results
@@ -705,33 +719,34 @@ function resolution!(g::Vector{BinVec{CT}};
       for (i, j, ee) in min_pairs
         a = vd[init+i]
         b = vd[init+j]
-        pp, e = lead(a)
-        qq, f = lead(b)
+        pp, e, _ = lead(a)
+        qq, f, _ = lead(b)
         @assert pp == qq
         # form the s-polynomial
         s = _binary_vector_div(ee, e)
         t = _binary_vector_div(ee, f)
-        t = xor(t, 1) # put a negative sign on t
+        t = xor(t, UInt(1)) # put a negative sign on t
         rem = addmul!(s*a, b, t, nothing) #addmul!(s*a, b, t)
         @assert is_zero(rem) || first(lead(rem)) > pp
-        new_syz = BinVec([(UInt(i+init), s), (UInt(j+init), t)])
-        sizehint!(new_syz.entries, length(rem))
+        new_syz = BinVec(kk, [(UInt(i+init), s, nothing), (UInt(j+init), t, nothing)])
+        sizehint!(new_syz.entries, length(rem)+2)
         # tail reduction
         old_lead = (UInt(0), UInt(0))
         while !is_zero(rem)
-          pp, mm = lead(rem)
+          pp, mm, cc = lead(rem)
           (pp, mm) == old_lead && error("no cancellation happened")
           ind = lookup[pp] # This is where we benefit from the lookup table!
           isnothing(ind) && error("non-trivial term in remainder, but nothing to cancel it")
           for k in ind:length(vd)
             w = vd[k]
-            q, nn = lead(w)
+            q, nn, dd = lead(w)
             q > pp && break # nothing to cancel here
             success, c = _binary_vector_divides(mm, nn)
             !success && continue
             c = xor(c, 1) # change sign of c
-            rem = addmul!(rem, w, c, nothing) #addmul!(rem, w, c)
-            push!(new_syz.entries, (UInt(k), c))
+            ee = _div(cc, dd)
+            rem = addmul!(rem, w, c, ee) #addmul!(rem, w, c)
+            push!(new_syz.entries, (UInt(k), c, ee))
             break
           end
           old_lead = (pp, mm)
@@ -883,7 +898,7 @@ end
 
 # Compute a list of pairs `(i, j)` of indices which 
 # give a small Groebner basis for the syzygies. 
-function minimal_pairs(v::Vector{BinVec})
+function minimal_pairs(v::Vector{BinVec{CT}}) where {CT}
   s = interreduce!(_syzygies(v))
   result = sizehint!(Tuple{Int, Int, UInt}[], div(length(v)^2, 2))
   for ss in s
@@ -1119,5 +1134,14 @@ function cohomology_support_set(X::NormalToricVariety, i::Int)
   return get!(supp_dict, i) do
     UInt[]
   end
+end
+
+function normalize!(g::Vector{BinVec{CT}}) where {CT}
+  for (k, v) in enumerate(g)
+    p, e, c = lead(v)
+    isnothing(c) && continue
+    g[k] = _mul!(inv(c), v)
+  end
+  return g
 end
 
