@@ -1,10 +1,55 @@
 @testset "Squarefree monomial resolutions" begin
   R, (x, y) = QQ[:x, :y]
   f = x*y
-  v = Oscar.BinVec(f)
-  @test "$(v)" == "1*[11]*e_1"
+  
+  u = Oscar.BinVec(f)
+  p, e, c = only(u.entries)
+  @test isnothing(c)
+  @test p == 1
+  @test e == 6
+  @test "$(u)" == "[11]*e_1"
+  
   v = Oscar.BinVec(-f)
-  @test "$(v)" == "-1*[11]*e_1"
+  p, e, c = only(v.entries)
+  @test isnothing(c)
+  @test p == 1
+  @test e == 7
+  @test "$(v)" == "-[11]*e_1"
+  
+  w = Oscar.BinVec(5*f)
+  p, e, c = only(w.entries)
+  @test c == 5
+  @test p == 1
+  @test e == 6
+  @test "$(w)" == "5 * [11]*e_1"
+  
+  uv = u + v
+  @test is_zero(uv)
+  
+  uu = u + u
+  p, e, c = only(uu.entries)
+  @test p == 1
+  @test e == 6
+  @test c == 2
+  
+  nw = -w
+  p, e, c = only(nw.entries)
+  @test p == 1
+  @test e == 7
+  @test c == 5
+  
+  @test is_zero((-w) + w)
+  @test is_zero(w - u - u - u - u - u)
+  a = (-2)*w
+  p, e, c = only(a.entries)
+  @test e == 6
+  b = 10*v
+  p, e, c = only(b.entries)
+  @test e == 7
+  @test a == b
+  @test hash(a, UInt(0)) == hash(b, UInt(0))
+  @test (-2)*w == 10*v
+
   F = FreeMod(R, 3)
   u = x*F[1] + F[2]
   v = x*F[1] + y*F[2]
@@ -12,15 +57,21 @@
   vv = Oscar.BinVec(v)
   ww = Oscar.BinVec(w)
   uu = Oscar.BinVec(u)
-  @test "$(vv - ww)" == "1*[01]*e_2 + -1*[11]*e_3" 
-  @test "$(5*uu)" ==  "-1*[11]*e_1 + -1*[01]*e_2"
+  @test all(isnothing(cc) for (_, _, cc) in uu.entries)
+  @test all(isnothing(cc) for (_, _, cc) in vv.entries)
+  @test all(isnothing(cc) for (_, _, cc) in ww.entries)
+  ww2 = Oscar.BinVec(2*w)
+  @test all(cc == 2 for (_, _, cc) in ww2.entries)
+  
+  @test "$(vv - ww)" == "[01]*e_2 + -[11]*e_3" 
+  @test "$(5*uu)" ==  "5 * [1]*e_1 + 5 * []*e_2"
   
   g = Oscar.BinVec.([x, y, x*y])
   @test length(Oscar.interreduce!(g)) == 2
   gb = Oscar.groebner_basis!(g)
   s1 = Oscar._syzygies(gb)
   s2 = Oscar._syzygies(s1)
-  @test is_one(length(s2))
+  @test is_empty(s2)
   
   #=
   I = load("some_file_with_monomial_generators.mrdi")
@@ -40,9 +91,9 @@
 end
 
 @testset "more resolutions" begin
-n = 10
+n = 12
 sample = [UInt(rand(1:2^(n-1))) for _ in 1:2^(n-4)]
-bv = interreduce!(Oscar.BinVec.(sample))
+bv = interreduce!([Oscar.BinVec(QQ, e) for e in sample])
 R, x = polynomial_ring(QQ, n)
 F = FreeMod(R, 1)
 v = F.(bv)
@@ -68,10 +119,27 @@ end
   
 end
 
+@testset "resolutions with coefficients" begin
+
+n = 15
+sample = [UInt(rand(1:2^(n-1))) for _ in 1:2^(n-4)]
+bv = interreduce!([Oscar.BinVec(QQ, e) for e in sample])
+R, x = polynomial_ring(QQ, n)
+F = FreeMod(R, 1)
+v = F.(bv)
+g = [Oscar.groebner_basis!(bv)]
+@time res = free_resolution(sub_object(F, v));
+@time while !isempty(last(g))
+  push!(g, Oscar.interreduce!(Oscar._syzygies(last(g))))
+end;
+length.(g)
+[ngens(res[i]) for i in 0:length(g)-1]
+end
+
 @testset "even more resolutions" begin
 n = 14
 sample = [UInt(rand(1:2^(n-1))) for _ in 1:2^(n-2)]
-bv = interreduce!(Oscar.BinVec.(sample))
+bv = interreduce!([Oscar.BinVec(QQ, e) for e in sample])
 R, x = polynomial_ring(GF(3), n)
 F = FreeMod(R, 1)
 v = F.(bv)
