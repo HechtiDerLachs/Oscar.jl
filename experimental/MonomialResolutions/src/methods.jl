@@ -692,7 +692,6 @@ function resolution!(g::Vector{BinVec{CT}};
     p = UInt(0)
     init = 0 # records the necessary offset
     while init < length(vd)
-      @show init, length(vd)
       p, e, _ = lead(vd[init+1])
       # We record the leading terms and compute a small Groebner 
       # basis for the syzygies of this monomial ideal. 
@@ -996,15 +995,16 @@ function degrees_of_generators(res::SquarefreeMonomialResolution, i::Int)
   return degs
 end
 
-function images_of_generators(res::SquarefreeMonomialResolution, i::Int)
+function images_of_generators(res::SquarefreeMonomialResolution{T, CT}, i::Int) where {T, CT}
   @assert i >= 0 "index out of bounds"
   if !isdefined(res, :res)
-    res.res = Vector{BinVec}[interreduce!(BinVec.(gens(res.I)))]
+    res.res = Vector{BinVec{CT}}[interreduce!(BinVec.(gens(res.I)))]
   end
   length(res.res) > i && return res.res[i+1]
   length(res.res) < i && images_of_generators(res, i-1) # fill the cache
   bvs = last(res.res)
-  push!(res.res, _parallel_syz(bvs))
+  r = resolution!(bvs; is_sorted=true, is_minimal=true, is_normalized=true, upper_bound=1)
+  push!(res.res, last(r))
   return last(res.res)
 end
 
@@ -1034,7 +1034,7 @@ function graded_part(res::SquarefreeMonomialResolution, p::UInt, i::Int)
     cod_inds = get(deg_buckets(res, i-1), p) do
       Int[]
     end #findall(==(p), cod_degs)
-    kk = coefficient_ring(base_ring(res.I))
+    kk = coefficient_ring(res)
     m = length(dom_inds)
     n = length(cod_inds)
     result = zero(matrix_space(kk, m, n))
@@ -1045,8 +1045,12 @@ function graded_part(res::SquarefreeMonomialResolution, p::UInt, i::Int)
         q = cod_inds[j]
         ind = findfirst(p == q for (p, _) in v.entries)
         isnothing(ind) && continue
-        _, e = v.entries[ind]
-        result[i, j] = is_one(e%2) ? -one(kk) : one(kk)
+        _, e, c = v.entries[ind]
+        if isnothing(c)
+          result[i, j] = is_one(e%2) ? -one(kk) : one(kk)
+        else
+          result[i, j] = is_one(e%2) ? -c : c
+        end
       end
     end
     result
@@ -1119,7 +1123,8 @@ function cohomology_support_set(X::NormalToricVariety, i::Int)
   supp_dict = get_attribute!(X, :cohomology_support_dict) do
     # This implements Corollary 1.2 (c) from Eisenbud, Mustata, Stillman: Cohomology On Toric Varieties and Local Cohomology With Monomial Supports
     dict = Dict{Int, Vector{UInt}}()
-    res = resolution_of_alexander_dual_of_irrelevant_ideal(X)
+    # there is no need to cache the whole resolution, once the support sets have been computed
+    res = SquarefreeMonomialResolution(alexander_dual_of_irrelevant_ideal(X))
     result = UInt[]
     for j in 1:ngens(cox_ring(X))
       for (p, r) in betti_numbers(res, j-1)
@@ -1149,4 +1154,6 @@ function normalize!(g::Vector{BinVec{CT}}) where {CT}
   end
   return g
 end
+
+coefficient_ring(res::SquarefreeMonomialResolution) = coefficient_ring(base_ring(res.I))
 

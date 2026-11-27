@@ -43,17 +43,18 @@ mutable struct BinVec{CT}
   end
 end
 
-mutable struct SquarefreeMonomialResolution{T}
+mutable struct SquarefreeMonomialResolution{T, CT}
   I::MPolyIdeal{T}
-  g::Vector{BinVec}
-  res::Vector{Vector{BinVec}}
+  g::Vector{BinVec{CT}}
+  res::Vector{Vector{BinVec{CT}}}
   degs::Vector{Vector{UInt}}
   deg_buckets::Dict{Int, Dict}
   graded_parts::Dict{UInt, Dict}
   betti_numbers::Dict{Tuple{Int, UInt}, Int}
 
   function SquarefreeMonomialResolution(I::MPolyIdeal{T}) where {T}
-    return new{T}(I)
+    kk = coefficient_ring(base_ring(I))
+    return new{T, elem_type(kk)}(I)
   end
 end
 
