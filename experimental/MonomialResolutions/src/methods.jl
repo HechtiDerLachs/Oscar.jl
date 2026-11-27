@@ -663,7 +663,7 @@ function resolution!(g::Vector{BinVec{CT}};
     g = interreduce!(g)
   end
   if !is_sorted
-    g = sort!(g; lt=_lt)
+    g = sort!(g; lt=_lt_rev_pos)
   end
   result = Vector{BinVec{CT}}[g]
   is_empty(g) && return result
@@ -692,6 +692,7 @@ function resolution!(g::Vector{BinVec{CT}};
     p = UInt(0)
     init = 0 # records the necessary offset
     while init < length(vd)
+      @show init, length(vd)
       p, e, _ = lead(vd[init+1])
       # We record the leading terms and compute a small Groebner 
       # basis for the syzygies of this monomial ideal. 
@@ -911,22 +912,34 @@ end
 # Experimental version which still gives too big results.
 function minimal_pairs(g::Vector{UInt})
   n = length(g)
-  lcms = Union{UInt, Nothing}[a | b for (i, a) in enumerate(g), (j, b) in enumerate(g)]
+  lcms = Union{UInt, Nothing}[a | b for a in g, b in g]
+  buckets = sizehint!(Vector{Tuple{UInt, UInt, Int}}[], n) # raw syzygies to be reduced
   # we apply the chain criterion: If (i, j) produces an lcm which is divisible by k, 
   # then (i, k) and (j, k) can be used instead of (i, j)
   for i in 1:(n-1)
+    m = g[i]
     for j in (i+1):n
-      e = lcms[i, j]::UInt
-      #for (k, f) in enumerate(g)
-      for k in (i+1):(j-1)
-        f = g[k]
-        if first(_binary_vector_divides(e, f))
-          lcms[i, j] = nothing
-          break
-        end
-      end
+      n = g[j]
+      e = m | n
+      any(first(_binary_vector_divides(e, g[k])) for k in (i+1):(j-1)) && continue
+      cof_m = xor(m, e) # cofactors; come with a minus sign!
+      cof_n = xor(n, e)
+      push!(buckets[i], (xor(cof_m, UInt(1)), cof_n, j))
     end
   end
+  for i in 1:n
+    bucket = buckets[i]
+    new_bucket = sizehint!(Tuple{UInt, UInt, Int}[], length(bucket))
+    for (k, (cm, cn, j)) in enumerate(bucket)
+      for (l, (d, e, p)) in enumerate(new_bucket)
+        success, q = _binary_vector_divides(cm, d)
+        if success
+        end
+      end
+      ind = findfirst(first(_binary_vector_divides(cm, d)) for (d, _, _) in new_bucket)
+    end
+  end
+
 #     cancel = false
 #     for s in 1:(i-1)
 #       for t in (s+1):n
